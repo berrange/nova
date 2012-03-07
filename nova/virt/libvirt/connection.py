@@ -1253,6 +1253,11 @@ class LibvirtConnection(driver.ComputeDriver):
         guest.memory = inst_type['memory_mb'] * 1024
         guest.vcpus = inst_type['vcpus']
 
+        if image_meta and "osinfo_os_id" in image_meta:
+            osinfo = config.LibvirtConfigGuestMetadataOsinfo()
+            osinfo.os_id = image_meta['osinfo_os_id']
+            guest.add_metadata(osinfo)
+
         root_device_name = driver.block_device_info_get_root(block_device_info)
         if root_device_name:
             root_device = block_device.strip_dev(root_device_name)

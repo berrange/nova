@@ -712,6 +712,21 @@ class LibvirtConnTestCase(test.TestCase):
         self.assertEquals(parameters[1].get('name'), 'DHCPSERVER')
         self.assertTrue(_ipv4_like(parameters[1].get('value'), '192.168.*.1'))
 
+
+    def test_metadata(self):
+        instance_data = dict(self.test_instance)
+        image_meta = {"disk_format": "raw",
+                      "osinfo_os_id": "http://fedoraproject.org/fedora/11"}
+        network_info = _fake_network_info(self.stubs, 2)
+        conn = connection.LibvirtConnection(True)
+        instance_ref = db.instance_create(self.context, instance_data)
+        xml = conn.to_xml(instance_ref, network_info, image_meta, False)
+        tree = ElementTree.fromstring(xml)
+        print xml
+        os = tree.findall("./metadata/{http://fedorahosted.org/libosinfo/libvirt/domain/1.0}osinfo/os")
+        self.assertEquals(len(os), 1)
+        self.assertEquals(os[0].get('id'), 'http://fedoraproject.org/fedora/11')
+
     def _check_xml_and_container(self, instance):
         user_context = context.RequestContext(self.user_id,
                                               self.project_id)

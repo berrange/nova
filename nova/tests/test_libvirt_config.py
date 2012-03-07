@@ -411,3 +411,17 @@ class LibvirtConfigCPUTest(test.TestCase):
 </cpu>
 """)
 
+
+class LibvirtConfigGuestSnapshotTest(test.TestCase):
+
+    def test_config_snapshot(self):
+        obj = config.LibvirtConfigGuestSnapshot()
+        obj.name = "Demo"
+
+        xml = obj.to_xml()
+        self.assertEqual(xml,
+"""<domainsnapshot>
+  <name>Demo</name>
+</domainsnapshot>
+""")
+

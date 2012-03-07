@@ -250,6 +250,18 @@ class LibvirtConfigGuestInterfaceTest(test.TestCase):
 
 
 
+class LibvirtConfigGuestMetadataTest(test.TestCase):
+    def test_config_osinfo(self):
+        obj = config.LibvirtConfigGuestMetadataOsinfo()
+        obj.os_id = "http://fedoraproject.org/fedora/11"
+
+        xml = obj.to_xml()
+        self.assertEqual(xml,
+"""<osinfo:osinfo xmlns:osinfo="http://fedorahosted.org/libosinfo/libvirt/domain/1.0">
+  <os id="http://fedoraproject.org/fedora/11"/>
+</osinfo:osinfo>
+""")
+
 
 class LibvirtConfigGuestTest(test.TestCase):
 
@@ -269,6 +281,10 @@ class LibvirtConfigGuestTest(test.TestCase):
 
         obj.add_device(fs)
 
+        m = config.LibvirtConfigGuestMetadataOsinfo()
+        m.os_id = "http://fedoraproject.org/fedora/11"
+        obj.add_metadata(m)
+
         xml = obj.to_xml()
         self.assertEqual(xml,
 """<domain type="lxc">
@@ -286,6 +302,11 @@ class LibvirtConfigGuestTest(test.TestCase):
       <target dir="/"/>
     </filesystem>
   </devices>
+  <metadata>
+    <osinfo:osinfo xmlns:osinfo="http://fedorahosted.org/libosinfo/libvirt/domain/1.0">
+      <os id="http://fedoraproject.org/fedora/11"/>
+    </osinfo:osinfo>
+  </metadata>
 </domain>
 """)
 

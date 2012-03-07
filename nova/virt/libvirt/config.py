@@ -289,6 +289,7 @@ class LibvirtConfigGuest(LibvirtConfigObject):
         self.os_init_path = None
         self.os_boot_dev = None
         self.devices = []
+        self.metadata = []
 
     def _format_basic_props(self, root):
         root.append(self._text_node("uuid", self.uuid))
@@ -327,6 +328,13 @@ class LibvirtConfigGuest(LibvirtConfigObject):
             devices.append(dev.format_dom())
         root.append(devices)
 
+    def _format_metadata(self, root):
+        if len(self.metadata) == 0:
+            return
+        metadata = etree.Element("metadata")
+        for m in self.metadata:
+            metadata.append(m.format_dom())
+        root.append(metadata)
 
     def format_dom(self):
         root = super(LibvirtConfigGuest, self).format_dom()
@@ -337,12 +345,16 @@ class LibvirtConfigGuest(LibvirtConfigObject):
         self._format_os(root)
         self._format_features(root)
         self._format_devices(root)
+        self._format_metadata(root)
 
         return root
 
 
     def add_device(self, dev):
         self.devices.append(dev)
+
+    def add_metadata(self, m):
+        self.metadata.append(m)
 
 
 class LibvirtConfigCPU(LibvirtConfigObject):
@@ -393,3 +405,16 @@ class LibvirtConfigGuestSnapshot(LibvirtConfigObject):
         ss.append(self._text_node("name", self.name))
         return ss
 
+class LibvirtConfigGuestMetadataOsinfo(LibvirtConfigObject):
+    def __init__(self, **kwargs):
+        super(LibvirtConfigGuestMetadataOsinfo, self).__init__(
+            ns_uri="http://fedorahosted.org/libosinfo/libvirt/domain/1.0",
+            ns_prefix="osinfo",
+            rootname="osinfo")
+
+        self.os_id = None
+
+    def format_dom(self):
+        root = super(LibvirtConfigGuestMetadataOsinfo, self).format_dom()
+        root.append(etree.Element("os", id=self.os_id))
+        return root

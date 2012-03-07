@@ -125,9 +125,6 @@ libvirt_opts = [
                help='Snapshot image format (valid options are : '
                     'raw, qcow2, vmdk, vdi). '
                     'Defaults to same as source image'),
-    cfg.StrOpt('libvirt_vif_type',
-               default='bridge',
-               help='Type of VIF to create.'),
     cfg.StrOpt('libvirt_vif_driver',
                default='nova.virt.libvirt.vif.LibvirtBridgeDriver',
                help='The libvirt VIF driver to configure the VIFs.'),
@@ -140,9 +137,6 @@ libvirt_opts = [
                   'sheepdog=nova.virt.libvirt.volume.LibvirtNetVolumeDriver'
                   ],
                 help='Libvirt handlers for remote volumes.'),
-    cfg.BoolOpt('libvirt_use_virtio_for_bridges',
-                default=False,
-                help='Use virtio for bridge interfaces'),
     cfg.StrOpt('libvirt_disk_prefix',
                default=None,
                help='Override the default disk prefix for the devices attached'
@@ -1271,9 +1265,9 @@ class LibvirtConnection(driver.ComputeDriver):
         block_device_mapping = driver.block_device_info_get_mapping(
             block_device_info)
 
-        nics = []
+        devs = []
         for (network, mapping) in network_info:
-            nics.append(self.vif_driver.plug(instance, network, mapping))
+            devs.append(self.vif_driver.plug(instance, network, mapping).to_xml())
         # FIXME(vish): stick this in db
         inst_type_id = instance['instance_type_id']
         inst_type = instance_types.get_instance_type(inst_type_id)
@@ -1326,13 +1320,10 @@ class LibvirtConnection(driver.ComputeDriver):
                     'disk_prefix': self._disk_prefix,
                     'driver_type': driver_type,
                     'root_device_type': root_device_type,
-                    'vif_type': FLAGS.libvirt_vif_type,
-                    'nics': nics,
+                    'devs': devs,
                     'ebs_root': ebs_root,
                     'ephemeral_device': ephemeral_device,
                     'volumes': volumes,
-                    'use_virtio_for_bridges':
-                            FLAGS.libvirt_use_virtio_for_bridges,
                     'ephemerals': ephemerals}
 
         root_device_name = driver.block_device_info_get_root(block_device_info)

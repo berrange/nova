@@ -590,13 +590,9 @@ class LibvirtConnection(driver.ComputeDriver):
             metadata['container_format'] = base['container_format']
 
         # Make the snapshot
-        snapshot_name = uuid.uuid4().hex
-        snapshot_xml = """
-        <domainsnapshot>
-            <name>%s</name>
-        </domainsnapshot>
-        """ % snapshot_name
-        snapshot_ptr = virt_dom.snapshotCreateXML(snapshot_xml, 0)
+        ss = config.LibvirtConfigGuestSnapshot()
+        ss.name = str(uuid.uuid4().hex)
+        snapshot_ptr = virt_dom.snapshotCreateXML(ss.to_xml(), 0)
 
         # Find the disk
         xml_desc = virt_dom.XMLDesc(0)
@@ -607,9 +603,9 @@ class LibvirtConnection(driver.ComputeDriver):
         # Export the snapshot to a raw image
         with utils.tempdir() as tmpdir:
             try:
-                out_path = os.path.join(tmpdir, snapshot_name)
+                out_path = os.path.join(tmpdir, ss.name)
                 libvirt_utils.extract_snapshot(disk_path, source_format,
-                                               snapshot_name, out_path,
+                                               ss.name, out_path,
                                                image_format)
                 # Upload that image to the image service
                 with libvirt_utils.file_open(out_path) as image_file:

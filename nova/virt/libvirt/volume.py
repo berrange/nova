@@ -44,7 +44,7 @@ class LibvirtVolumeDriver(object):
         """Connect the volume. Returns xml for libvirt."""
         conf = config.LibvirtConfigGuestDisk()
         conf.source_type = "block"
-        conf.driver_type = self._pick_volume_driver()
+        conf.driver_name = self._pick_volume_driver()
         conf.driver_format = "raw"
         conf.source_path = connection_info['data']['device_path']
         conf.target_dev = mount_device
@@ -62,7 +62,7 @@ class LibvirtFakeVolumeDriver(LibvirtVolumeDriver):
     def connect_volume(self, connection_info, mount_device):
         conf = config.LibvirtConfigGuestDisk()
         conf.source_type = "network"
-        conf.driver_type = "qemu"
+        conf.driver_name = "qemu"
         conf.driver_format = "raw"
         conf.source_protocol = "fake"
         conf.source_host = "fake"
@@ -77,7 +77,7 @@ class LibvirtNetVolumeDriver(LibvirtVolumeDriver):
     def connect_volume(self, connection_info, mount_device):
         conf = config.LibvirtConfigGuestDisk()
         conf.source_type = "network"
-        conf.driver_type = self._pick_volume_driver()
+        conf.driver_name = self._pick_volume_driver()
         conf.driver_format = "raw"
         conf.source_protocol = connection_info['driver_volume_type']
         conf.source_host = connection_info['data']['name']

@@ -25,9 +25,11 @@ from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 from nova import utils
 
+from nova.virt import firewall
 from nova.virt.libvirt import config as vconfig
 from nova.virt.libvirt import designer
 from nova.virt import netutils
+
 LOG = logging.getLogger(__name__)
 
 libvirt_vif_opts = [
@@ -49,6 +51,11 @@ LIBVIRT_OVS_VPORT_VERSION = 9011
 
 
 class LibvirtBaseVIFDriver(object):
+
+    def get_firewall_required(self, instance, network, mapping, conn):
+        if type(conn.firewall_driver) != firewall.NoopFirewallDriver:
+            return True
+        return False
 
     def get_vif_devname(self, mapping):
         if 'vif_devname' in mapping:
@@ -103,9 +110,10 @@ class LibvirtBridgeDriver(LibvirtBaseVIFDriver):
             if CONF.use_ipv6:
                 ipv6_cidr = network['cidr_v6']
 
-        designer.set_vif_host_backend_filter_config(
-            conf, name, primary_addr, dhcp_server,
-            ra_server, ipv4_cidr, ipv6_cidr)
+        if self.get_firewall_required(instance, network, mapping, conn):
+            designer.set_vif_host_backend_filter_config(
+                conf, name, primary_addr, dhcp_server,
+                ra_server, ipv4_cidr, ipv6_cidr)
 
         return conf
 
@@ -137,12 +145,19 @@ class LibvirtBridgeDriver(LibvirtBaseVIFDriver):
         pass
 
 
-class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
+class LibvirtOpenVswitchDriver(LibvirtBridgeDriver):
     """VIF driver for Open vSwitch that uses libivrt type='ethernet'
 
     Used for libvirt versions that do not support
     OVS virtual port XML (0.9.10 or earlier).
     """
+
+    def get_br_name(self, iface_id):
+        return ("qbr" + iface_id)[:LINUX_DEV_LEN]
+
+    def get_veth_pair_names(self, iface_id):
+        return (("qvb%s" % iface_id)[:LINUX_DEV_LEN],
+                ("qvo%s" % iface_id)[:LINUX_DEV_LEN])
 
     def set_config_ovs_ethernet(self, conf, network, mapping):
         dev = self.get_vif_devname(mapping)
@@ -154,7 +169,17 @@ class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
             self.get_vif_devname(mapping))
 
     def get_config(self, instance, network, mapping, conn):
-        conf = super(LibvirtOpenVswitchDriver,
+        if self.get_firewall_required(instance, network, mapping, conn):
+            network['bridge'] = self.get_br_name(mapping['vif_uuid'])
+            return super(LibvirtOpenVswitchDriver,
+                         self).get_config(instance,
+                                          network,
+                                          mapping,
+                                          conn)
+
+        # We're skipping LibvirtBridgeDriver get_config here,
+        # going straight to its super class
+        conf = super(LibvirtBridgeDriver,
                      self).get_config(instance,
                                       network,
                                       mapping,
@@ -179,57 +204,7 @@ class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
     def plug_ovs_bridge(self, instance, vif):
         pass
 
-    def plug(self, instance, vif, conn):
-        if conn.getLibVersion() >= LIBVIRT_OVS_VPORT_VERSION:
-            self.plug_ovs_bridge(instance, vif)
-        else:
-            self.plug_ovs_ethernet(instance, vif)
-
-    def unplug_ovs_ethernet(self, instance, vif):
-        """Unplug the VIF by deleting the port from the bridge."""
-        try:
-            network, mapping = vif
-            linux_net.delete_ovs_vif_port(network['bridge'],
-                                          self.get_vif_devname(mapping))
-        except exception.ProcessExecutionError:
-            LOG.exception(_("Failed while unplugging vif"), instance=instance)
-
-    def unplug_ovs_bridge(self, instance, vif):
-        pass
-
-    def unplug(self, instance, vif, conn):
-        if conn.getLibVersion() >= LIBVIRT_OVS_VPORT_VERSION:
-            self.unplug_ovs_bridge(instance, vif)
-        else:
-            self.unplug_ovs_ethernet(instance, vif)
-
-
-class LibvirtHybridOVSBridgeDriver(LibvirtBridgeDriver):
-    """VIF driver that uses OVS + Linux Bridge for iptables compatibility.
-
-    Enables the use of OVS-based Quantum plugins while at the same
-    time using iptables-based filtering, which requires that vifs be
-    plugged into a linux bridge, not OVS.  IPtables filtering is useful for
-    in particular for Nova security groups.
-    """
-
-    def get_br_name(self, iface_id):
-        return ("qbr" + iface_id)[:LINUX_DEV_LEN]
-
-    def get_veth_pair_names(self, iface_id):
-        return (("qvb%s" % iface_id)[:LINUX_DEV_LEN],
-                ("qvo%s" % iface_id)[:LINUX_DEV_LEN])
-
-    def get_config(self, instance, network, mapping, conn):
-        br_name = self.get_br_name(mapping['vif_uuid'])
-        network['bridge'] = br_name
-        return super(LibvirtHybridOVSBridgeDriver,
-                     self).get_config(instance,
-                                      network,
-                                      mapping,
-                                      conn)
-
-    def plug(self, instance, vif, conn):
+    def plug_ovs_hybrid(self, instance, vif):
         """Plug using hybrid strategy
 
         Create a per-VIF linux bridge, then link that bridge to the OVS
@@ -254,7 +229,27 @@ class LibvirtHybridOVSBridgeDriver(LibvirtBridgeDriver):
                                           v2_name, iface_id, mapping['mac'],
                                           instance['uuid'])
 
-    def unplug(self, instance, vif, conn):
+    def plug(self, instance, vif, conn):
+        if self.get_firewall_required(instance, network, mapping, conn):
+            self.plug_ovs_hybrid(instance, vif)
+        elif conn.getLibVersion() >= LIBVIRT_OVS_VPORT_VERSION:
+            self.plug_ovs_bridge(instance, vif)
+        else:
+            self.plug_ovs_ethernet(instance, vif)
+
+    def unplug_ovs_ethernet(self, instance, vif):
+        """Unplug the VIF by deleting the port from the bridge."""
+        try:
+            network, mapping = vif
+            linux_net.delete_ovs_vif_port(network['bridge'],
+                                          self.get_vif_devname(mapping))
+        except exception.ProcessExecutionError:
+            LOG.exception(_("Failed while unplugging vif"), instance=instance)
+
+    def unplug_ovs_bridge(self, instance, vif):
+        pass
+
+    def unplug_ovs_hybrid(self, instance, vif, conn):
         """UnPlug using hybrid strategy
 
         Unhook port from OVS, unhook port from bridge, delete
@@ -274,6 +269,24 @@ class LibvirtHybridOVSBridgeDriver(LibvirtBridgeDriver):
             linux_net.delete_ovs_vif_port(network['bridge'], v2_name)
         except exception.ProcessExecutionError:
             LOG.exception(_("Failed while unplugging vif"), instance=instance)
+
+    def unplug(self, instance, vif, conn):
+        if self.get_firewall_required(instance, network, mapping, conn):
+            self.unplug_ovs_hybrid(instance, vif)
+        elif conn.getLibVersion() >= LIBVIRT_OVS_VPORT_VERSION:
+            self.unplug_ovs_bridge(instance, vif)
+        else:
+            self.unplug_ovs_ethernet(instance, vif)
+
+
+class LibvirtHybridOVSBridgeDriver(LibvirtOpenVswitchDriver):
+    """Obsoleted by LibvirtOpenVswitchDriver. Retained for Grizzly to
+       facilitate migration to new impl. To be removed in Hxxxx"""
+
+    def __init__(self):
+        LOG.warn("LibvirtHybridOVSBridgeDriver is obsolete. " +
+                 "Update the libvirt_vif_driver config parameter " +
+                 "to use the LibvirtOpenVswitchDriver class instead")
 
 
 class LibvirtOpenVswitchVirtualPortDriver(LibvirtOpenVswitchDriver):

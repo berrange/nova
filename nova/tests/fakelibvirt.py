@@ -18,6 +18,8 @@ from lxml import etree
 
 import uuid
 
+from nova.tests import fake_network as fakenet
+
 # Allow passing None to the various connect methods
 # (i.e. allow the client to rely on default URLs)
 allow_default_uri_connection = True
@@ -503,6 +505,7 @@ class Connection(object):
         self._nwfilters = {}
         self.fakeLibVersion = 9007
         self.fakeVersion = 9007
+        self.firewall_driver = fakenet.FakeIptablesFirewallDriver()
 
     def _add_filter(self, nwfilter):
         self._nwfilters[nwfilter._name] = nwfilter

@@ -20,6 +20,7 @@ from nova.openstack.common import cfg
 from nova import test
 from nova.tests import fakelibvirt
 from nova import utils
+from nova.virt import firewall
 from nova.virt.libvirt import config as vconfig
 from nova.virt.libvirt import vif
 
@@ -213,6 +214,7 @@ class LibvirtVifTestCase(test.TestCase):
     def test_ovs_ethernet_driver(self):
         c = fakelibvirt.Connection("qemu:///session", False)
         c.fakeVersion = c.fakeLibVersion = 9010
+        c.firewall_driver = firewall.NoopFirewallDriver()
         d = vif.LibvirtOpenVswitchDriver()
         xml = self._get_instance_xml(d, c)
 
@@ -232,6 +234,7 @@ class LibvirtVifTestCase(test.TestCase):
         c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtOpenVswitchVirtualPortDriver()
         c.fakeVersion = c.fakeLibVersion = 9011
+        c.firewall_driver = firewall.NoopFirewallDriver()
         xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
@@ -255,7 +258,7 @@ class LibvirtVifTestCase(test.TestCase):
 
         self.assertTrue(iface_id_found)
 
-    def test_quantum_hybrid_driver(self):
+    def test_ovs_hybrid_driver(self):
         c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtHybridOVSBridgeDriver()
         xml = self._get_instance_xml(d, c)
@@ -266,6 +269,8 @@ class LibvirtVifTestCase(test.TestCase):
         node = ret[0]
         self.assertEqual(node.get("type"), "bridge")
         br_name = node.find("source").get("bridge")
-        self.assertEqual(br_name, self.net['bridge'])
+        self.assertEqual(
+            br_name,
+            ("qbr" + self.mapping['vif_uuid'])[:vif.LINUX_DEV_LEN])
         mac = node.find("mac").get("address")
         self.assertEqual(mac, self.mapping['mac'])

@@ -458,12 +458,14 @@ class LibvirtDriver(driver.ComputeDriver):
     def plug_vifs(self, instance, network_info):
         """Plug VIFs into networks."""
         for (network, mapping) in network_info:
-            self.vif_driver.plug(instance, (network, mapping))
+            self.vif_driver.plug(instance, (network, mapping),
+                                 self._conn)
 
     def unplug_vifs(self, instance, network_info):
         """Unplug VIFs from networks."""
         for (network, mapping) in network_info:
-            self.vif_driver.unplug(instance, (network, mapping))
+            self.vif_driver.unplug(instance, (network, mapping),
+                                   self._conn)
 
     def _destroy(self, instance):
         try:
@@ -1778,9 +1780,11 @@ class LibvirtDriver(driver.ComputeDriver):
             guest.add_device(cfg)
 
         for (network, mapping) in network_info:
-            self.vif_driver.plug(instance, (network, mapping))
+            self.vif_driver.plug(instance, (network, mapping),
+                                 self._conn)
             cfg = self.vif_driver.get_config(instance,
-                                                     network, mapping)
+                                             network, mapping,
+                                             self._conn)
             guest.add_device(cfg)
 
         if CONF.libvirt_type == "qemu" or CONF.libvirt_type == "kvm":

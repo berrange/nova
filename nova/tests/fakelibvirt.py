@@ -501,6 +501,8 @@ class Connection(object):
         self._running_vms = {}
         self._id_counter = 1  # libvirt reserves 0 for the hypervisor.
         self._nwfilters = {}
+        self.fakeLibVersion = 9007
+        self.fakeVersion = 9007
 
     def _add_filter(self, nwfilter):
         self._nwfilters[nwfilter._name] = nwfilter
@@ -569,10 +571,10 @@ class Connection(object):
             return 'QEMU'
 
     def getLibVersion(self):
-        return 9007
+        return self.fakeLibVersion
 
     def getVersion(self):
-        return 14000
+        return self.fakeVersion
 
     def getHostname(self):
         return 'compute1'

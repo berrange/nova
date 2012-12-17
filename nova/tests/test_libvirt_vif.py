@@ -18,9 +18,11 @@ from lxml import etree
 
 from nova.openstack.common import cfg
 from nova import test
+from nova.tests import fakelibvirt
 from nova import utils
 from nova.virt.libvirt import config as vconfig
 from nova.virt.libvirt import vif
+
 
 CONF = cfg.CONF
 
@@ -67,7 +69,7 @@ class LibvirtVifTestCase(test.TestCase):
 
         self.stubs.Set(utils, 'execute', fake_execute)
 
-    def _get_instance_xml(self, driver):
+    def _get_instance_xml(self, driver, conn):
         conf = vconfig.LibvirtConfigGuest()
         conf.virt_type = "qemu"
         conf.name = "fake-name"
@@ -75,7 +77,7 @@ class LibvirtVifTestCase(test.TestCase):
         conf.memory = 100 * 1024
         conf.vcpus = 4
 
-        nic = driver.get_config(self.instance, self.net, self.mapping)
+        nic = driver.get_config(self.instance, self.net, self.mapping, conn)
         conf.add_device(nic)
         return conf.to_xml()
 
@@ -125,8 +127,9 @@ class LibvirtVifTestCase(test.TestCase):
         self.flags(libvirt_use_virtio_for_bridges=False,
                    libvirt_type='kvm')
 
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -138,14 +141,13 @@ class LibvirtVifTestCase(test.TestCase):
         ret = node.findall("driver")
         self.assertEqual(len(ret), 0)
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_model_kvm(self):
         self.flags(libvirt_use_virtio_for_bridges=True,
                    libvirt_type='kvm')
 
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -157,14 +159,13 @@ class LibvirtVifTestCase(test.TestCase):
         ret = node.findall("driver")
         self.assertEqual(len(ret), 0)
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_model_qemu(self):
         self.flags(libvirt_use_virtio_for_bridges=True,
                    libvirt_type='qemu')
 
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -176,14 +177,13 @@ class LibvirtVifTestCase(test.TestCase):
         driver = node.find("driver").get("name")
         self.assertEqual(driver, "qemu")
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_model_xen(self):
         self.flags(libvirt_use_virtio_for_bridges=True,
                    libvirt_type='xen')
 
+        c = fakelibvirt.Connection("xen:///system", False)
         d = vif.LibvirtBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -195,11 +195,10 @@ class LibvirtVifTestCase(test.TestCase):
         ret = node.findall("driver")
         self.assertEqual(len(ret), 0)
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_bridge_driver(self):
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -211,11 +210,11 @@ class LibvirtVifTestCase(test.TestCase):
         mac = node.find("mac").get("address")
         self.assertEqual(mac, self.mapping['mac'])
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_ovs_ethernet_driver(self):
+        c = fakelibvirt.Connection("qemu:///session", False)
+        c.fakeVersion = c.fakeLibVersion = 9010
         d = vif.LibvirtOpenVswitchDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -229,11 +228,11 @@ class LibvirtVifTestCase(test.TestCase):
         script = node.find("script").get("path")
         self.assertEquals(script, "")
 
-        d.unplug(None, (self.net, self.mapping))
-
     def test_ovs_virtualport_driver(self):
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtOpenVswitchVirtualPortDriver()
-        xml = self._get_instance_xml(d)
+        c.fakeVersion = c.fakeLibVersion = 9011
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -255,11 +254,11 @@ class LibvirtVifTestCase(test.TestCase):
                 iface_id_found = True
 
         self.assertTrue(iface_id_found)
-        d.unplug(None, (self.net, self.mapping))
 
     def test_quantum_hybrid_driver(self):
+        c = fakelibvirt.Connection("qemu:///session", False)
         d = vif.LibvirtHybridOVSBridgeDriver()
-        xml = self._get_instance_xml(d)
+        xml = self._get_instance_xml(d, c)
 
         doc = etree.fromstring(xml)
         ret = doc.findall('./devices/interface')
@@ -270,5 +269,3 @@ class LibvirtVifTestCase(test.TestCase):
         self.assertEqual(br_name, self.net['bridge'])
         mac = node.find("mac").get("address")
         self.assertEqual(mac, self.mapping['mac'])
-
-        d.unplug(None, (self.net, self.mapping))

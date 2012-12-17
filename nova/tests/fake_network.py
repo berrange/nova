@@ -53,7 +53,7 @@ class FakeVIFDriver(object):
     def setattr(self, key, val):
         self.__setattr__(key, val)
 
-    def get_config(self, instance, network, mapping):
+    def get_config(self, instance, network, mapping, conn):
         conf = libvirt_config.LibvirtConfigGuestInterface()
 
         for attr, val in conf.__dict__.iteritems():
@@ -62,7 +62,7 @@ class FakeVIFDriver(object):
 
         return conf
 
-    def plug(self, instance, vif):
+    def plug(self, instance, vif, conn):
         pass
 
 

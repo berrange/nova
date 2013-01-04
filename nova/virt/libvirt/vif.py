@@ -46,6 +46,11 @@ LINUX_DEV_LEN = 14
 
 class LibvirtBaseVIFDriver(object):
 
+    def get_vif_devname(self, mapping):
+        if 'vif_devname' in mapping:
+            return mapping['vif_devname']
+        return ("nic" + mapping['vif_uuid'])[:LINUX_DEV_LEN]
+
     def get_config(self, instance, network, mapping):
         conf = vconfig.LibvirtConfigGuestInterface()
         model = None
@@ -78,7 +83,7 @@ class LibvirtBridgeDriver(LibvirtBaseVIFDriver):
                                       mapping)
 
         designer.set_vif_host_backend_bridge_config(
-            conf, network['bridge'], None)
+            conf, network['bridge'], self.get_vif_devname(mapping))
 
         name = "nova-instance-" + instance['name'] + "-" + mac_id
         primary_addr = mapping['ips'][0]['ip']
@@ -134,11 +139,8 @@ class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
     OVS virtual port XML (0.9.10 or earlier).
     """
 
-    def get_dev_name(self, iface_id):
-        return ("tap" + iface_id)[:LINUX_DEV_LEN]
-
     def get_config(self, instance, network, mapping):
-        dev = self.get_dev_name(mapping['vif_uuid'])
+        dev = self.get_vif_devname(mapping)
 
         conf = super(LibvirtOpenVswitchDriver,
                      self).get_config(instance,
@@ -167,7 +169,7 @@ class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
     def plug(self, instance, vif):
         network, mapping = vif
         iface_id = mapping['vif_uuid']
-        dev = self.get_dev_name(iface_id)
+        dev = self.get_vif_devname(mapping)
         if not linux_net.device_exists(dev):
             # Older version of the command 'ip' from the iproute2 package
             # don't have support for the tuntap option (lp:882568).  If it
@@ -191,7 +193,7 @@ class LibvirtOpenVswitchDriver(LibvirtBaseVIFDriver):
         try:
             network, mapping = vif
             self.delete_ovs_vif_port(network['bridge'],
-                                     self.get_dev_name(mapping['vif_uuid']))
+                                     self.get_vif_devname(mapping))
         except exception.ProcessExecutionError:
             LOG.exception(_("Failed while unplugging vif"), instance=instance)
 
@@ -280,7 +282,8 @@ class LibvirtOpenVswitchVirtualPortDriver(LibvirtBaseVIFDriver):
                                       mapping)
 
         designer.set_vif_host_backend_ovs_config(
-            conf, network['bridge'], mapping['vif_uuid'])
+            conf, network['bridge'], mapping['vif_uuid'],
+            self.get_vif_devname(mapping))
 
         return conf
 
@@ -295,15 +298,9 @@ class LibvirtOpenVswitchVirtualPortDriver(LibvirtBaseVIFDriver):
 class QuantumLinuxBridgeVIFDriver(LibvirtBaseVIFDriver):
     """VIF driver for Linux Bridge when running Quantum."""
 
-    def get_dev_name(self, iface_id):
-        return ("tap" + iface_id)[:LINUX_DEV_LEN]
-
     def get_config(self, instance, network, mapping):
-        iface_id = mapping['vif_uuid']
-        dev = self.get_dev_name(iface_id)
-
-        bridge = network['bridge']
-        linux_net.LinuxBridgeInterfaceDriver.ensure_bridge(bridge, None,
+        linux_net.LinuxBridgeInterfaceDriver.ensure_bridge(network['bridge'],
+                                                           None,
                                                            filtering=False)
 
         conf = super(QuantumLinuxBridgeVIFDriver,
@@ -312,7 +309,7 @@ class QuantumLinuxBridgeVIFDriver(LibvirtBaseVIFDriver):
                                       mapping)
 
         designer.set_vif_host_backend_bridge_config(
-            conf, bridge, dev)
+            conf, network['bridge'], self.get_vif_devname(mapping))
 
         return conf
 

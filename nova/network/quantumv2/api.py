@@ -569,7 +569,7 @@ class API(base.Base):
                 subnet['ips'] = [fixed_ip for fixed_ip in network_IPs
                                  if fixed_ip.is_in_subnet(subnet)]
 
-            bridge = ''
+            bridge = None
             vif_type = port.get('binding:vif_type')
             # TODO(berrange) Quantum should pass the bridge name
             # in another binding metadata field
@@ -578,7 +578,11 @@ class API(base.Base):
             elif vif_type == network_model.VIF_TYPE_BRIDGE:
                 bridge = "brq" + port['network_id']
 
-            bridge = bridge[:network_model.BRIDGE_NAME_LEN]
+            if bridge is not None:
+                bridge = bridge[:network_model.BRIDGE_NAME_LEN]
+
+            devname = "tap" + port['id']
+            devname = devname[:network_model.VIF_NAME_LEN]
 
             network = network_model.Network(
                 id=port['network_id'],
@@ -592,7 +596,8 @@ class API(base.Base):
                 id=port['id'],
                 address=port['mac_address'],
                 network=network,
-                type=port.get('binding:vif_type')))
+                type=port.get('binding:vif_type'),
+                devname=devname))
         return nw_info
 
     def _get_subnets_from_port(self, context, port):

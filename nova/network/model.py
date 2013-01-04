@@ -210,7 +210,9 @@ class Network(Model):
 class VIF(Model):
     """Represents a Virtual Interface in Nova"""
     def __init__(self, id=None, address=None, network=None, type=None,
-                 devname=None, **kwargs):
+                 devname=None, profileid=None, managerid=None,
+                 typeid=None, typeidversion=None, instanceid=None,
+                 **kwargs):
         super(VIF, self).__init__()
 
         self['id'] = id
@@ -218,6 +220,15 @@ class VIF(Model):
         self['network'] = network or None
         self['type'] = type
         self['devname'] = devname
+
+        # Only for 802.1Qbh
+        self['profileid'] = profileid
+
+        # Only for 802.1Qbh
+        self['managerid'] = managerid
+        self['typeid'] = typeid
+        self['typeidversion'] = typeidversion
+        self['instanceid'] = instanceid
 
         self._set_meta(kwargs)
 

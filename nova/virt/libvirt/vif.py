@@ -179,7 +179,13 @@ class LibvirtGenericVIFDriver(LibvirtBaseVIFDriver):
                                       network,
                                       mapping,
                                       conn)
-        raise NotImplementedError()
+
+        designer.set_vif_host_backend_802qbg_config(
+            conf, network["interface"],
+            mapping["managerid"], mapping["typeid"],
+            mapping["typeidversion"], mapping["instanceid"])
+
+        return conf
 
     def get_config_802qbh(self, instance, network, mapping, conn):
         conf = super(LibvirtGenericVIFDriver,
@@ -187,7 +193,12 @@ class LibvirtGenericVIFDriver(LibvirtBaseVIFDriver):
                                       network,
                                       mapping,
                                       conn)
-        raise NotImplementedError()
+
+        designer.set_vif_host_backend_802qbh_config(
+            conf, network["interface"],
+            mapping["profileid"])
+
+        return conf
 
     def get_config(self, instance, network, mapping, conn):
         vif_type = mapping['vif_type']
@@ -295,13 +306,9 @@ class LibvirtGenericVIFDriver(LibvirtBaseVIFDriver):
         super(LibvirtGenericVIFDriver,
               self).plug(instance, vif, conn)
 
-        raise NotImplementedError()
-
     def plug_802qbh(self, instance, vif, conn):
         super(LibvirtGenericVIFDriver,
               self).plug(instance, vif, conn)
-
-        raise NotImplementedError()
 
     def plug(self, instance, vif, conn):
         network, mapping = vif
@@ -385,13 +392,9 @@ class LibvirtGenericVIFDriver(LibvirtBaseVIFDriver):
         super(LibvirtGenericVIFDriver,
               self).unplug(instance, vif, conn)
 
-        raise NotImplementedError()
-
     def unplug_802qbh(self, instance, vif, conn):
         super(LibvirtGenericVIFDriver,
               self).unplug(instance, vif, conn)
-
-        raise NotImplementedError()
 
     def unplug(self, instance, vif, conn):
         network, mapping = vif

@@ -295,27 +295,11 @@ class LibvirtOpenVswitchVirtualPortDriver(LibvirtBaseVIFDriver):
         pass
 
 
-class QuantumLinuxBridgeVIFDriver(LibvirtBaseVIFDriver):
-    """VIF driver for Linux Bridge when running Quantum."""
+class QuantumLinuxBridgeVIFDriver(LibvirtBridgeDriver):
+    """Obsoleted by LibvirtBridgeDriver. Retained for Grizzly to
+       facilitate migration to new impl. To be removed in Hxxxx"""
 
-    def get_config(self, instance, network, mapping):
-        linux_net.LinuxBridgeInterfaceDriver.ensure_bridge(network['bridge'],
-                                                           None,
-                                                           filtering=False)
-
-        conf = super(QuantumLinuxBridgeVIFDriver,
-                     self).get_config(instance,
-                                      network,
-                                      mapping)
-
-        designer.set_vif_host_backend_bridge_config(
-            conf, network['bridge'], self.get_vif_devname(mapping))
-
-        return conf
-
-    def plug(self, instance, vif):
-        pass
-
-    def unplug(self, instance, vif):
-        """No action needed.  Libvirt takes care of cleanup"""
-        pass
+    def __init__(self):
+        LOG.warn("QuantumLinuxBridgeVIFDriver is obsolete. Update the " +
+                 "libvirt_vif_driver config parameter to use the " +
+                 "LibvirtBridgeDriver class instead")

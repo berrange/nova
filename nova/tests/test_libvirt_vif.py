@@ -257,24 +257,6 @@ class LibvirtVifTestCase(test.TestCase):
         self.assertTrue(iface_id_found)
         d.unplug(None, (self.net, self.mapping))
 
-    def test_quantum_bridge_ethernet_driver(self):
-        d = vif.QuantumLinuxBridgeVIFDriver()
-        xml = self._get_instance_xml(d)
-
-        doc = etree.fromstring(xml)
-        ret = doc.findall('./devices/interface')
-        self.assertEqual(len(ret), 1)
-        node = ret[0]
-        self.assertEqual(node.get("type"), "bridge")
-        dev_name = node.find("target").get("dev")
-        self.assertTrue(dev_name.startswith("tap"))
-        mac = node.find("mac").get("address")
-        self.assertEqual(mac, self.mapping['mac'])
-        br_name = node.find("source").get("bridge")
-        self.assertEqual(br_name, "br0")
-
-        d.unplug(None, (self.net, self.mapping))
-
     def test_quantum_hybrid_driver(self):
         d = vif.LibvirtHybridOVSBridgeDriver()
         xml = self._get_instance_xml(d)

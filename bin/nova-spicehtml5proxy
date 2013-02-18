@@ -25,6 +25,7 @@ import os
 import sys
 
 from nova import config
+from nova import gurumed
 from nova.console import websocketproxy
 from nova.openstack.common import cfg
 
@@ -70,6 +71,8 @@ if __name__ == '__main__':
 
     # Setup flags
     config.parse_args(sys.argv)
+
+    gurumed.setup()
 
     # Check to see if spice html/js/css files are present
     if not os.path.exists(CONF.web):

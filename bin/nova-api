@@ -37,6 +37,7 @@ if os.path.exists(os.path.join(possible_topdir, "nova", "__init__.py")):
 
 
 from nova import config
+from nova import gurumed
 from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 from nova import service
@@ -50,6 +51,7 @@ if __name__ == '__main__':
     config.parse_args(sys.argv)
     logging.setup("nova")
     utils.monkey_patch()
+    gurumed.setup()
 
     launcher = service.ProcessLauncher()
     for api in CONF.enabled_apis:

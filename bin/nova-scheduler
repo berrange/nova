@@ -37,6 +37,7 @@ if os.path.exists(os.path.join(possible_topdir, 'nova', '__init__.py')):
 gettext.install('nova', unicode=1)
 
 from nova import config
+from nova import gurumed
 from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 from nova import service
@@ -49,6 +50,7 @@ if __name__ == '__main__':
     config.parse_args(sys.argv)
     logging.setup("nova")
     utils.monkey_patch()
+    gurumed.setup()
     server = service.Service.create(binary='nova-scheduler',
                                     topic=CONF.scheduler_topic)
     service.serve(server)

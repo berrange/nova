@@ -61,6 +61,20 @@ class StackTraceModel(Model):
 
         self["frames"].reverse()
 
+    def __str__(self):
+        lines = []
+        for frame in self["frames"]:
+            txt = frame["text"]
+            if txt is not None:
+                txt = txt.strip()
+            lines.append("  %s:%d in %s" % (frame["filename"],
+                                            frame["lineno"],
+
+                                            frame["funcname"]))
+            lines.append("    %s" % txt)
+
+        return "\n".join(lines)
+
 
 class ThreadModel(StackTraceModel):
     """A model describing a thread.
@@ -76,6 +90,10 @@ class ThreadModel(StackTraceModel):
 
         self["threadid"] = threadid
 
+    def __str__(self):
+        return ("Thread ID %s\n" % str(self["threadid"]) +
+                super(ThreadModel, self).__str__())
+
 
 class ThreadListModel(Model):
     """A model describing a list of threads.
@@ -85,6 +103,12 @@ class ThreadListModel(Model):
 
     def __init__(self, threads):
         self["threads"] = threads
+
+    def __str__(self):
+        lines = []
+        for t in self["threads"]:
+            lines.append(str(t))
+        return "\n\n".join(lines)
 
 
 class ExceptionModel(StackTraceModel):
@@ -102,6 +126,14 @@ class ExceptionModel(StackTraceModel):
         self["class"] = type(ex).__name__
         self["message"] = ex.message
         self["args"] = ex.args
+
+    def __str__(self):
+        lines = []
+        lines.append("Traceback %s('%s')" % (self["class"],
+                                             self['message']))
+        lines.append(super(ExceptionModel,
+                           self).__str__())
+        return "\n".join(lines)
 
 
 class ConfigModel(Model):
@@ -130,6 +162,15 @@ class ConfigModel(Model):
             else:
                 self["groups"]["DEFAULT"][option] = str(value)
 
+    def __str__(self):
+        lines = []
+        for group in sorted(self["groups"]):
+            lines.append("%s:" % group)
+            for key in sorted(self["groups"][group]):
+                val = self["groups"][group][key]
+                lines.append("  %(key)s=%(val)s" % locals())
+        return "\n".join(lines)
+
 
 class PackageModel(Model):
     """A model describing the package release.
@@ -143,6 +184,15 @@ class PackageModel(Model):
         self["version"] = version
         self["package"] = package
 
+    def __str__(self):
+        lines = []
+        lines.append("Vendor: %s" % self["vendor"])
+        lines.append("Product: %s" % self["product"])
+        lines.append("Version: %s" % self["version"])
+        if self["package"] is not None:
+            lines.append("Package: %s" % self["package"])
+        return "\n".join(lines)
+
 
 class SectionModel(Model):
     """A model providing a section.
@@ -153,6 +203,16 @@ class SectionModel(Model):
     def __init__(self, title, data):
         self["title"] = title
         self["data"] = data
+
+    def __str__(self):
+        if self["data"] is None:
+            return ""
+        lines = []
+        bar = '=' * 72
+        lines.append("==== %s ====" % self["title"].center(62))
+        lines.append(bar)
+        lines.append(str(self["data"]))
+        return "\n".join(lines)
 
 
 class ReportModel(Model):
@@ -165,3 +225,20 @@ class ReportModel(Model):
         self["sections"] = sections
         self["uuid"] = uuidutils.generate_uuid()
         self["time"] = time.time()
+
+    def __str__(self):
+        bar = '=' * 72
+        lines = []
+        lines.append(bar)
+        lines.append("==== %s ====" % "Guru meditation report".center(62))
+        lines.append(bar)
+        lines.append("UUID: %s" % self["uuid"])
+        lines.append("Time: %s" % time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                                                time.gmtime(self["time"])))
+        lines.append(bar)
+
+        for section in self["sections"]:
+            lines.append(str(section))
+            lines.append(bar)
+
+        return "\n".join(lines)

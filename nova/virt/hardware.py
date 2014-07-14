@@ -1231,6 +1231,43 @@ class VirtPCIDeviceInfo(object):
             VirtPCIAddressInfo._from_str(data.get("phys_function")))
 
 
+class VirtHostResources(object):
+
+    def __init__(self, hv_driver, hv_version, hv_hostname):
+        """Create new host resources information record
+
+        :param hv_driver: name of the hypervisor driver
+        :param hv_version: version of the hypervisor
+        :param hv_hostname: hostname of the control plane OS
+        """
+
+        self.hypervisor_type = hv_driver
+        self.hypervisor_version = hv_version
+        self.hypervisor_hostname = hv_hostname
+
+        self.vcpus_total = None
+        self.vcpus_used = None
+
+        self.memory_mb_total = None
+        self.memory_mb_used = None
+
+        self.local_gb_total = None
+        self.local_gb_used = None
+        self.local_gb_least = None
+
+        # VirtCPUModel object
+        self.cpu_model = None
+
+        # List of VirtPCIDeviceInfo objects
+        self.pci_devices = []
+
+        # List of VirtInstanceInfo objects
+        self.supported_instances = []
+
+        # VirtNUMAHostTopology object
+        self.numa_topology = None
+
+
 # TODO(ndipanov): Remove when all code paths are using objects
 def instance_topology_from_instance(instance):
     """Convenience method for getting the numa_topology out of instances

@@ -46,6 +46,7 @@ from nova.openstack.common import log as logging
 from nova.openstack.common import units
 from nova import utils
 from nova.virt import driver
+from nova.virt import hardware
 from nova.virt.xenapi.client import session
 from nova.virt.xenapi import host
 from nova.virt.xenapi import pool
@@ -449,6 +450,7 @@ class XenAPIDriver(driver.ComputeDriver):
         used_disk_gb = host_stats['disk_used'] / units.Gi
         allocated_disk_gb = host_stats['disk_allocated'] / units.Gi
         hyper_ver = utils.convert_version_to_int(self._session.product_version)
+<<<<<<< HEAD
         dic = {'vcpus': host_stats['host_cpu_info']['cpu_count'],
                'memory_mb': total_ram_mb,
                'local_gb': total_disk_gb,
@@ -467,6 +469,33 @@ class XenAPIDriver(driver.ComputeDriver):
                'numa_topology': None}
 
         return dic
+=======
+
+        res = hardware.VirtHostResources(
+            "xen", hyper_ver, host_stats['host_hostname'])
+
+
+        res.vcpus_total = host_stats['host_cpu_info']['cpu_count']
+        res.vcpus_used = host_stats['vcpus_used']
+
+        res.memory_mb_total = total_ram_mb
+        res.memory_mb_used = total_ram_mb - free_ram_mb
+
+        res.local_gb_total = total_disk_gb
+        res.local_gb_used = used_disk_gb
+        res.local_gb_least = total_disk_gb - allocated_disk_gb
+
+        # TODO(berrange): just what format is 'host_cpu_info' in ?
+        # The fake.py driver just shows a CPU count, which is not
+        # what this data field is supposed to show.
+        #res.cpu_model = host_stats['host_cpu_info']
+
+        res.supported_instances = host_stats['supported_instances']
+
+        res.pci_devices = host_stats['pci_devices']
+
+        return res
+>>>>>>> 8fe5c4c... stuff
 
     def ensure_filtering_rules_for_instance(self, instance, network_info):
         # NOTE(salvatore-orlando): it enforces security groups on

@@ -8086,6 +8086,7 @@ class LibvirtConnTestCase(test.TestCase):
             self.assertEqual(expectvfs[i]._to_dict(),
                              actualvfs[i]._to_dict())
 
+
     def _fake_caps_numa_topology(self):
         topology = vconfig.LibvirtConfigCapsNUMATopology()
 
@@ -8869,7 +8870,7 @@ Active:          8381604 kB
             self.assertEqual(8657, drvr._get_memory_mb_used())
             mock_list.assert_called_with(only_guests=False)
 
-    def test_get_instance_capabilities(self):
+    def test_get_instance_info(self):
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
 
         def get_host_capabilities_stub(self):
@@ -10244,18 +10245,28 @@ class HostStateTestCase(test.NoDBTestCase):
         drvr = HostStateTestCase.FakeConnection()
 
         stats = drvr.get_available_resource("compute1")
-        self.assertEqual(stats["vcpus"], 1)
-        self.assertEqual(stats["memory_mb"], 497)
-        self.assertEqual(stats["local_gb"], 100)
-        self.assertEqual(stats["vcpus_used"], 0)
-        self.assertEqual(stats["memory_mb_used"], 88)
-        self.assertEqual(stats["local_gb_used"], 20)
-        self.assertEqual(stats["hypervisor_type"], 'QEMU')
-        self.assertEqual(stats["hypervisor_version"], 13091)
-        self.assertEqual(stats["hypervisor_hostname"], 'compute1')
+        self.assertThat(hardware.VirtNUMAHostTopology.from_json(
+                            stats['numa_topology'])._to_dict(),
+                        matchers.DictMatches(
+                                HostStateTestCase.numa_topology._to_dict()))
+
+        self.assertEqual('QEMU', stats.hypervisor_type)
+        self.assertEqual(13091, stats.hypervisor_version)
+        self.assertEqual('compute1', stats.hypervisor_hostname)
+
+        self.assertEqual(1, stats.vcpus_total)
+        self.assertEqual(0, stats.vcpus_used)
+
+        self.assertEqual(497, stats.memory_mb_total)
+        self.assertEqual(88, stats.memory_mb_used)
+
+        self.assertEqual(100, stats.local_gb_total)
+        self.assertEqual(20, stats.local_gb_used)
+        self.assertEqual(80, stats.local_gb_least)
+
         self.assertEqual(HostStateTestCase.cpu_model._to_dict(),
-                         stats["cpu_model"]._to_dict())
-        self.assertEqual(stats["disk_available_least"], 80)
+                         stats.cpu_model._to_dict())
+
         self.assertEqual(len(HostStateTestCase.pci_devices),
                          len(stats["pci_devices"]))
         for i in range(len(HostStateTestCase.pci_devices)):
@@ -10267,8 +10278,9 @@ class HostStateTestCase(test.NoDBTestCase):
             self.assertEqual(
                 HostStateTestCase.supported_instances[i]._to_dict(),
                 stats["supported_instances"][i]._to_dict())
-        self.assertEqual(stats['numa_topology']._to_dict(),
-                         HostStateTestCase.numa_topology._to_dict())
+
+        self.assertEqual(HostStateTestCase.numa_topology._to_dict(),
+                         stats.numa_topology._to_dict())
 
 
 class LibvirtDriverTestCase(test.TestCase):

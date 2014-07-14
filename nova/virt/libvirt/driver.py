@@ -4892,40 +4892,45 @@ class LibvirtDriver(driver.ComputeDriver):
         as part of a periodic task that records the results in the DB.
 
         :param nodename: will be put in PCI device
-        :returns: dictionary containing resource info
+        :returns: an nova.virt.hardware.VirtHostResources instance
         """
-
-        disk_info_dict = self._get_local_gb_info()
-        data = {}
 
         # NOTE(dprince): calling capabilities before getVersion works around
         # an initialization issue with some versions of Libvirt (1.0.5.5).
         # See: https://bugzilla.redhat.com/show_bug.cgi?id=1000116
         # See: https://bugs.launchpad.net/nova/+bug/1215593
 
-        data["supported_instances"] = self._get_supported_instances()
+        LOG.debug("Updating host stats")
 
-        data["vcpus"] = self._get_vcpu_total()
-        data["memory_mb"] = self._get_memory_mb_total()
-        data["local_gb"] = disk_info_dict['total']
-        data["vcpus_used"] = self._get_vcpu_used()
-        data["memory_mb_used"] = self._get_memory_mb_used()
-        data["local_gb_used"] = disk_info_dict['used']
-        data["hypervisor_type"] = self._get_hypervisor_type()
-        data["hypervisor_version"] = self._get_hypervisor_version()
-        data["hypervisor_hostname"] = self._get_hypervisor_hostname()
-        data["cpu_model"] = self._get_cpu_model()
+        res = hardware.VirtHostResources(
+            self._get_hypervisor_type(),
+            self._get_hypervisor_version(),
+            self._get_hypervisor_hostname())
 
+        res.cpu_model = self._get_cpu_model()
+
+        res.vcpus_total = self._get_vcpu_total()
+        res.vcpus_used = self._get_vcpu_used()
+
+        res.memory_mb_total = self._get_memory_mb_total()
+        res.memory_mb_used = self._get_memory_mb_used()
+
+        disk_info_dict = self._get_local_gb_info()
         disk_free_gb = disk_info_dict['free']
         disk_over_committed = self._get_disk_over_committed_size_total()
         available_least = disk_free_gb * units.Gi - disk_over_committed
-        data['disk_available_least'] = available_least / units.Gi
 
-        data['pci_devices'] = self._get_pci_device_info()
+        res.local_gb_total = disk_info_dict['total']
+        res.local_gb_used = disk_info_dict['used']
+        res.local_gb_least = available_least / units.Gi
 
-        data['numa_topology'] = self._get_host_numa_topology()
+        res.supported_instances = self._get_supported_instances()
 
-        return data
+        res.pci_devices = self._get_pci_device_info()
+
+        res.numa_topology = self._get_host_numa_topology()
+
+        return res
 
     def get_instance_cpu_config(self, context, instance):
         """Retrieve instance xml config infomation."""

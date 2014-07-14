@@ -661,7 +661,7 @@ class ComputeDriver(object):
         :param nodename:
             node which the caller want to get resources from
             a driver that manages only one node can safely ignore this
-        :returns: Dictionary describing resources
+        :returns: nova.virt.hardware.VirtHostResources object instance
         """
         raise NotImplementedError()
 

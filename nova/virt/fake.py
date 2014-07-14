@@ -33,6 +33,7 @@ from nova.compute import power_state
 from nova.compute import task_states
 from nova.compute import vm_mode
 from nova.console import type as ctype
+from nova.compute import vm_mode
 from nova import db
 from nova import exception
 from nova.i18n import _
@@ -398,12 +399,33 @@ class FakeDriver(driver.ComputeDriver):
         if nodename not in _FAKE_NODES:
             return {}
 
-        host_status = self.host_status_base.copy()
-        host_status['hypervisor_hostname'] = nodename
-        host_status['host_hostname'] = nodename
-        host_status['host_name_label'] = nodename
-        host_status['cpu_info'] = '?'
-        return host_status
+        res = hardware.VirtHostResources(
+            "fake",
+            utils.convert_version_to_int('1.0'),
+            nodename)
+
+        res.vcpus_total = self.vcpus
+        res.vcpus_used = 0
+
+        res.memory_mb_total = self.memory_mb
+        res.memory_mb_used = 0
+
+        res.local_gb_total = self.local_gb
+        res.local_gb_used = 100000000000
+        res.local_gb_least = 0
+
+        res.cpu_model = hardware.VirtCPUModel(
+            hardware.VirtCPUModel.MODE_CUSTOM,
+            "Opteron_G4")
+
+        res.supported_instances = [
+            hardware.VirtInstanceInfo(
+                arch.X86_64,
+                hvtype.FAKE,
+                vm_mode.HVM)
+        ]
+
+        return res
 
     def ensure_filtering_rules_for_instance(self, instance_ref, network_info):
         return

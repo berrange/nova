@@ -697,6 +697,158 @@ class VirtCPUModel(object):
         return cls._from_dict(jsonutils.loads(json_string))
 
 
+class VirtInstanceInfo(object):
+    """Records information about the guest instances hardware
+    types that can be executed by the hypervisor.
+    """
+
+    def __init__(self, arch, hvtype, vmmode):
+        """Create new instance information record
+
+        :param arch: one of nova.compute.arch constants
+        :param hvtype: one of nova.compute.hvtype constants
+        :param vmmode: one of nova.compute.vmmode constants
+        """
+
+        self.arch = compute_arch.canonicalize(arch)
+        self.hvtype = compute_hvtype.canonicalize(hvtype)
+        self.vmmode = compute_vmmode.canonicalize(vmmode)
+
+    def _to_dict(self):
+        return {
+            "arch": self.arch,
+            "hvtype": self.hvtype,
+            "vmmode": self.vmmode
+        }
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(data["arch"], data["hvtype"], data["vmmode"])
+
+
+class VirtPCIAddressInfo(object):
+
+    def __init__(self, domain, bus, slot, function):
+        """Create new PCI device address information record
+
+        :param domain: the PCI domain component
+        :param bus: the PCI bus component
+        :param slot: the PCI slot component
+        :param function: the PCI function component
+        """
+
+        self.domain = domain
+        self.bus = bus
+        self.slot = slot
+        self.function = function
+
+    def _to_dict(self):
+        return {
+            "domain": self.domain,
+            "bus": self.bus,
+            "slot": self.slot,
+            "function": self.function,
+            }
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(
+            data["domain"],
+            data["bus"],
+            data["slot"],
+            data["function"])
+
+
+class VirtPCIDeviceInfo(object):
+
+    DEV_TYPE_REGULAR = "type-PCI"
+    DEV_TYPE_PHYS_FUNC = "type-PF"
+    DEV_TYPE_VIRT_FUNC = "type-VF"
+
+    def __init__(self, dev_type, dev_id, label,
+                 product_id, vendor_id,
+                 address, parent_address=None):
+        """Create new PCI device information record
+
+        :param dev_type: type of device - DEV_TYPE constants
+        :param dev_id: unique string identifier for device
+        :param label: descriptive label of the device
+        :param product_id: integer ID of the product
+        :param vendor_id: integer ID of the vendor
+        :param address: instance of VirtPCIAddressInfo
+        :param parent_address: instance of VirtPCIAddressInfo
+        """
+
+        self.dev_type = dev_type
+        self.dev_id = dev_id
+        self.label = label
+        self.product_id = product_id
+        self.vendor_id = vendor_id
+        self.address = address
+        self.parent_address = parent_address
+
+    def _to_dict(self):
+        return {
+            "dev_type": self.dev_type,
+            "dev_id": self.dev_id,
+            "label": self.label,
+            "product_id": self.product_id,
+            "vendor_id": self.vendor_id,
+            "address": self.address._to_dict(),
+            "parent_address": self.parent_address._to_dict()
+            if self.parent_address is not None else None
+        }
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(
+            data["dev_type"],
+            data["dev_id"],
+            data["label"],
+            data["product_id"],
+            data["vendor_id"],
+            VirtPCIAddressInfo._from_dict(data["address"]),
+            VirtPCIAddressInfo._from_dict(data["address"])
+            if "address" in data else None)
+
+
+class VirtHostResources(object):
+
+    def __init__(self, hv_driver, hv_version, hv_hostname):
+        """Create new host resources information record
+
+        :param hv_driver: name of the hypervisor driver
+        :param hv_version: version of the hypervisor
+        :param hv_hostname: hostname of the control plane OS
+        """
+
+        self.hypervisor_type = hv_driver
+        self.hypervisor_version = hv_version
+        self.hypervisor_hostname = hv_hostname
+
+        self.vcpus_total = None
+        self.vcpus_used = None
+
+        self.memory_mb_total = None
+        self.memory_mb_used = None
+
+        self.local_gb_total = None
+        self.local_gb_used = None
+        self.local_gb_least = None
+
+        # VirtCPUModel object
+        self.cpu_model = None
+
+        # List of VirtPCIDeviceInfo objects
+        self.pci_devices = []
+
+        # List of VirtInstanceInfo objects
+        self.supported_instances = []
+
+        # VirtNUMAHostTopology object
+        self.numa_topology = None
+
+
 class VirtNUMATopologyCell(object):
     """Class for reporting NUMA resources in a cell
 

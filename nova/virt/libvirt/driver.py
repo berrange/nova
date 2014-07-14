@@ -4627,6 +4627,7 @@ class LibvirtDriver(driver.ComputeDriver):
                            'new': hostname})
         return self._hypervisor_hostname
 
+<<<<<<< HEAD
     def _get_supported_instances(self):
         """Get hypervisor instance capabilities
 
@@ -4635,6 +4636,15 @@ class LibvirtDriver(driver.ComputeDriver):
         capable of hosting.
 
         :returns: list of nova.virt.hardware.VirtInstanceInfo
+=======
+    def _get_instance_info(self):
+        """Get hypervisor instance information
+
+        Get the list of instance types that are supported on
+        the current hypervisor
+
+        :returns: List of nova.virt.hardware.VirtInstanceInfo
+>>>>>>> 8fe5c4c... stuff
         """
         caps = self._get_host_capabilities()
         insts = []
@@ -4645,13 +4655,14 @@ class LibvirtDriver(driver.ComputeDriver):
 
         return insts
 
-    def _get_cpu_info(self):
-        """Get cpuinfo information.
+    def _get_cpu_model(self):
+        """Get the host CPU model
 
-        Obtains cpu feature from virConnect.getCapabilities,
-        and returns as a json string.
+        Query the libvirt capabilities to extract the host
+        CPU model and turn it into the format required by
+        Nova.
 
-        :return: see above description
+        :return: a nova.virt.hardware.VirtCPUModel object
 
         """
         # TODO(berrange): This method exists for legacy backcompat
@@ -4660,30 +4671,24 @@ class LibvirtDriver(driver.ComputeDriver):
         # CPU model instead of the guest CPU model.
         #
         # Delete me once enough time has passed that we can assume
-        # all nodes support guest CPU model reporting. If we do want
-        # to keep it long term this should change over to use the
-        # nova.virt.hardware.VirtCPUModel() class, as the new driver
-        # method get_instance_cpu_config() does
+        # all nodes support guest CPU model reporting.
 
         caps = self._get_host_capabilities()
-        cpu_info = dict()
+        cpu = caps.host.cpu
+        features = [hardware.VirtCPUFeature(
+            f.name) for f in cpu.features]
 
-        cpu_info['arch'] = caps.host.cpu.arch
-        cpu_info['model'] = caps.host.cpu.model
-        cpu_info['vendor'] = caps.host.cpu.vendor
+        if cpu.sockets is None:
+            topo = None
+        else:
+            topo = hardware.VirtCPUTopology(
+                cpu.sockets, cpu.cores, cpu.threads)
 
-        topology = dict()
-        topology['sockets'] = caps.host.cpu.sockets
-        topology['cores'] = caps.host.cpu.cores
-        topology['threads'] = caps.host.cpu.threads
-        cpu_info['topology'] = topology
-
-        features = list()
-        for f in caps.host.cpu.features:
-            features.append(f.name)
-        cpu_info['features'] = features
-
-        return jsonutils.dumps(cpu_info)
+        return hardware.VirtCPUModel(
+            hardware.VirtCPUModel.MODE_CUSTOM,
+            cpu.model, features,
+            cpu.vendor, topo,
+            hardware.VirtCPUModel.MATCH_EXACT)
 
     def _get_pcidev_info(self, devname):
         """Returns a dict of PCI device."""
@@ -4891,17 +4896,15 @@ class LibvirtDriver(driver.ComputeDriver):
         as part of a periodic task that records the results in the DB.
 
         :param nodename: will be put in PCI device
-        :returns: dictionary containing resource info
+        :returns: an nova.virt.hardware.VirtHostResources instance
         """
-
-        disk_info_dict = self._get_local_gb_info()
-        data = {}
 
         # NOTE(dprince): calling capabilities before getVersion works around
         # an initialization issue with some versions of Libvirt (1.0.5.5).
         # See: https://bugzilla.redhat.com/show_bug.cgi?id=1000116
         # See: https://bugs.launchpad.net/nova/+bug/1215593
 
+<<<<<<< HEAD
         data["supported_instances"] = self._get_supported_instances()
 
         data["vcpus"] = self._get_vcpu_total()
@@ -4914,21 +4917,46 @@ class LibvirtDriver(driver.ComputeDriver):
         data["hypervisor_version"] = self._get_hypervisor_version()
         data["hypervisor_hostname"] = self._get_hypervisor_hostname()
         data["cpu_info"] = self._get_cpu_info()
+=======
+        # Temporary convert supported_instances into a string, while keeping
+        # the RPC version as JSON. Can be changed when RPC broadcast is removed
+>>>>>>> 8fe5c4c... stuff
 
+        LOG.debug("Updating host stats")
+
+        res = hardware.VirtHostResources(
+            self._get_hypervisor_type(),
+            self._get_hypervisor_version(),
+            self._get_hypervisor_hostname())
+
+        res.cpu_model = self._get_cpu_model()
+
+        res.vcpus_total = self._get_vcpu_total()
+        res.vcpus_used = self._get_vcpu_used()
+
+        res.memory_mb_total = self._get_memory_mb_total()
+        res.memory_mb_used = self._get_memory_mb_used()
+
+        disk_info_dict = self._get_local_gb_info()
         disk_free_gb = disk_info_dict['free']
         disk_over_committed = self._get_disk_over_committed_size_total()
         available_least = disk_free_gb * units.Gi - disk_over_committed
-        data['disk_available_least'] = available_least / units.Gi
 
+<<<<<<< HEAD
         data['pci_devices'] = self._get_pci_device_info()
+=======
+        res.local_gb_total = disk_info_dict['total']
+        res.local_gb_used = disk_info_dict['used']
+        res.local_gb_least = available_least / units.Gi
+>>>>>>> 8fe5c4c... stuff
 
-        numa_topology = self._get_host_numa_topology()
-        if numa_topology:
-            data['numa_topology'] = numa_topology.to_json()
-        else:
-            data['numa_topology'] = None
+        res.supported_instances = self._get_instance_info()
 
-        return data
+        res.pci_devices = self._get_pci_device_info()
+
+        res.numa_topology = self._get_host_numa_topology()
+
+        return res
 
     def get_instance_cpu_config(self, context, instance):
         """Retrieve instance xml config infomation."""

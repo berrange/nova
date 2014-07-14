@@ -7954,13 +7954,17 @@ class LibvirtConnTestCase(test.TestCase):
                        '_get_host_capabilities',
                        get_host_capabilities_stub)
 
-        want = {"vendor": "AMD",
-                "features": ["extapic", "3dnow"],
-                "model": "Opteron_G4",
-                "arch": arch.X86_64,
-                "topology": {"cores": 2, "threads": 1, "sockets": 4}}
-        got = jsonutils.loads(conn._get_cpu_info())
-        self.assertEqual(want, got)
+        want = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_CUSTOM,
+            name="Opteron_G4",
+            features=[
+                hardware.VirtCPUFeature("extapic"),
+                hardware.VirtCPUFeature("3dnow"),
+            ],
+            vendor="AMD",
+            topology=hardware.VirtCPUTopology(4, 2, 1))
+        got = conn._get_cpu_model()
+        self.assertEqual(want._to_dict(), got._to_dict())
 
     def test_get_pcidev_info(self):
 
@@ -8061,6 +8065,7 @@ class LibvirtConnTestCase(test.TestCase):
         for i in range(len(actualvfs)):
             self.assertEqual(expectvfs[i]._to_dict(),
                              actualvfs[i]._to_dict())
+
 
     def _fake_caps_numa_topology(self):
         topology = vconfig.LibvirtConfigCapsNUMATopology()
@@ -8834,7 +8839,7 @@ Active:          8381604 kB
             self.assertEqual(8657, drvr._get_memory_mb_used())
             mock_list.assert_called_with(only_guests=False)
 
-    def test_get_instance_capabilities(self):
+    def test_get_instance_info(self):
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
 
         def get_host_capabilities_stub(self):
@@ -10109,11 +10114,28 @@ Active:          8381604 kB
 
 class HostStateTestCase(test.NoDBTestCase):
 
-    cpu_info = ('{"vendor": "Intel", "model": "pentium", "arch": "i686", '
-                 '"features": ["ssse3", "monitor", "pni", "sse2", "sse", '
-                 '"fxsr", "clflush", "pse36", "pat", "cmov", "mca", "pge", '
-                 '"mtrr", "sep", "apic"], '
-                 '"topology": {"cores": "1", "threads": "1", "sockets": "1"}}')
+    cpu_model = hardware.VirtCPUModel(
+        hardware.VirtCPUModel.MODE_CUSTOM,
+        "pentium",
+        [
+            hardware.VirtCPUFeature("ssse3"),
+            hardware.VirtCPUFeature("monitor"),
+            hardware.VirtCPUFeature("pni"),
+            hardware.VirtCPUFeature("sse2"),
+            hardware.VirtCPUFeature("sse"),
+            hardware.VirtCPUFeature("fxsr"),
+            hardware.VirtCPUFeature("clflush"),
+            hardware.VirtCPUFeature("pse36"),
+            hardware.VirtCPUFeature("pat"),
+            hardware.VirtCPUFeature("cmov"),
+            hardware.VirtCPUFeature("mca"),
+            hardware.VirtCPUFeature("pge"),
+            hardware.VirtCPUFeature("mtrr"),
+            hardware.VirtCPUFeature("sep"),
+            hardware.VirtCPUFeature("apic")
+        ],
+        "Intel",
+        hardware.VirtCPUTopology(1, 1, 1))
     supported_instances = [
         hardware.VirtInstanceInfo(arch.X86_64,
                                   hvtype.KVM,
@@ -10148,8 +10170,8 @@ class HostStateTestCase(test.NoDBTestCase):
         def _get_vcpu_used(self):
             return 0
 
-        def _get_cpu_info(self):
-            return HostStateTestCase.cpu_info
+        def _get_cpu_model(self):
+            return HostStateTestCase.cpu_model
 
         def _get_disk_over_committed_size_total(self):
             return 0
@@ -10192,24 +10214,28 @@ class HostStateTestCase(test.NoDBTestCase):
         drvr = HostStateTestCase.FakeConnection()
 
         stats = drvr.get_available_resource("compute1")
-        self.assertEqual(stats["vcpus"], 1)
-        self.assertEqual(stats["memory_mb"], 497)
-        self.assertEqual(stats["local_gb"], 100)
-        self.assertEqual(stats["vcpus_used"], 0)
-        self.assertEqual(stats["memory_mb_used"], 88)
-        self.assertEqual(stats["local_gb_used"], 20)
-        self.assertEqual(stats["hypervisor_type"], 'QEMU')
-        self.assertEqual(stats["hypervisor_version"], 13091)
-        self.assertEqual(stats["hypervisor_hostname"], 'compute1')
-        self.assertEqual(jsonutils.loads(stats["cpu_info"]),
-                {"vendor": "Intel", "model": "pentium",
-                 "arch": arch.I686,
-                 "features": ["ssse3", "monitor", "pni", "sse2", "sse",
-                              "fxsr", "clflush", "pse36", "pat", "cmov",
-                              "mca", "pge", "mtrr", "sep", "apic"],
-                 "topology": {"cores": "1", "threads": "1", "sockets": "1"}
-                })
-        self.assertEqual(stats["disk_available_least"], 80)
+        self.assertThat(hardware.VirtNUMAHostTopology.from_json(
+                            stats['numa_topology'])._to_dict(),
+                        matchers.DictMatches(
+                                HostStateTestCase.numa_topology._to_dict()))
+
+        self.assertEqual('QEMU', stats.hypervisor_type)
+        self.assertEqual(13091, stats.hypervisor_version)
+        self.assertEqual('compute1', stats.hypervisor_hostname)
+
+        self.assertEqual(1, stats.vcpus_total)
+        self.assertEqual(0, stats.vcpus_used)
+
+        self.assertEqual(497, stats.memory_mb_total)
+        self.assertEqual(88, stats.memory_mb_used)
+
+        self.assertEqual(100, stats.local_gb_total)
+        self.assertEqual(20, stats.local_gb_used)
+        self.assertEqual(80, stats.local_gb_least)
+
+        self.assertEqual(HostStateTestCase.cpu_model._to_dict(),
+                         stats.cpu_model._to_dict())
+
         self.assertEqual(len(HostStateTestCase.pci_devices),
                          len(stats["pci_devices"]))
         for i in range(len(HostStateTestCase.pci_devices)):
@@ -10220,10 +10246,9 @@ class HostStateTestCase(test.NoDBTestCase):
         for i in range(len(HostStateTestCase.supported_instances)):
             self.assertEqual(HostStateTestCase.supported_instances[i]._to_dict(),
                              stats["supported_instances"][i]._to_dict())
-        self.assertThat(hardware.VirtNUMAHostTopology.from_json(
-                            stats['numa_topology'])._to_dict(),
-                        matchers.DictMatches(
-                                HostStateTestCase.numa_topology._to_dict()))
+
+        self.assertEqual(HostStateTestCase.numa_topology._to_dict(),
+                         stats.numa_topology._to_dict())
 
 
 class LibvirtDriverTestCase(test.TestCase):

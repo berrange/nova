@@ -54,16 +54,23 @@ class XenAPIDriverTestCase(stubs.XenAPITestBaseNoDB):
         self.stubs.Set(driver.host_state, 'get_host_stats', self.host_stats)
 
         resources = driver.get_available_resource(None)
-        self.assertEqual(6008002, resources['hypervisor_version'])
-        self.assertEqual(50, resources['vcpus'])
-        self.assertEqual(3, resources['memory_mb'])
-        self.assertEqual(5, resources['local_gb'])
-        self.assertEqual(10, resources['vcpus_used'])
-        self.assertEqual(3 - 2, resources['memory_mb_used'])
-        self.assertEqual(2, resources['local_gb_used'])
-        self.assertEqual('xen', resources['hypervisor_type'])
-        self.assertEqual('somename', resources['hypervisor_hostname'])
-        self.assertEqual(1, resources['disk_available_least'])
+        self.assertEqual(6008002, resources.hypervisor_version)
+        self.assertEqual('xen', resources.hypervisor_type)
+        self.assertEqual('somename', resources.hypervisor_hostname)
+
+        self.assertEqual(50, resources.vcpus_total)
+        self.assertEqual(10, resources.vcpus_used)
+
+        self.assertEqual(3, resources.memory_mb_total)
+        self.assertEqual(3 - 2, resources.memory_mb_used)
+
+        self.assertEqual(5, resources.local_gb_total)
+        self.assertEqual(2, resources.local_gb_used)
+        self.assertEqual(1, resources.local_gb_least)
+
+        self.assertEqual([], resources.pci_devices)
+        self.assertIsNone(resources.cpu_model)
+        self.assertIsNone(resources.numa_topology)
 
     def test_overhead(self):
         driver = self._get_driver()

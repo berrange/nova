@@ -37,6 +37,7 @@ from nova.tests.virt.libvirt import fake_libvirt_utils
 from nova.virt import block_device as driver_block_device
 from nova.virt import event as virtevent
 from nova.virt import fake
+from nova.virt import hardware
 from nova.virt import libvirt
 from nova.virt.libvirt import imagebackend
 
@@ -613,20 +614,10 @@ class _VirtDriverTestCase(_FakeDriverBackendTestCase):
                                        lambda *a: None, lambda *a: None)
 
     @catch_notimplementederror
-    def _check_available_resource_fields(self, host_status):
-        keys = ['vcpus', 'memory_mb', 'local_gb', 'vcpus_used',
-                'memory_mb_used', 'hypervisor_type', 'hypervisor_version',
-                'hypervisor_hostname', 'cpu_info', 'disk_available_least',
-                'supported_instances']
-        for key in keys:
-            self.assertIn(key, host_status)
-        self.assertIsInstance(host_status['hypervisor_version'], int)
-
-    @catch_notimplementederror
     def test_get_available_resource(self):
-        available_resource = self.connection.get_available_resource(
+        data = self.connection.get_available_resource(
                 'myhostname')
-        self._check_available_resource_fields(available_resource)
+        self.assertIsInstance(data, hardware.VirtHostResources)
 
     @catch_notimplementederror
     def _check_host_cpu_status_fields(self, host_cpu_status):

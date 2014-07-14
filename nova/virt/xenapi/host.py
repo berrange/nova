@@ -193,11 +193,17 @@ class HostState(object):
                 addrbits1[0], addrbits1[1],
                 addrbits2[0], addrbits2[1])
 
+<<<<<<< HEAD
             # XXX what format was this in ??!?!
             # Guessing it doesn't match what we had
             # done for libvirt originally ?
             # type_pci = self._session.call_plugin_serialized(
             #     'xenhost', 'get_pci_type', slot_id[0])
+=======
+            # XXX what format is this in ?
+            type_pci = self._session.call_plugin_serialized(
+                'xenhost', 'get_pci_type', slot_id[0])
+>>>>>>> 8fe5c4c... stuff
 
             return hardware.VirtPCIDeviceInfo(
                 dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
@@ -291,10 +297,14 @@ def to_supported_instances(host_capabilities):
 
             ostype, _version, guestarch = capability.split("-")
 
+<<<<<<< HEAD
             result.append(
                 hardware.VirtInstanceInfo(guestarch,
                                           hvtype.XEN,
                                           ostype))
+=======
+            result.append(hardware.VirtInstanceInfo(guestarch, hvtype.XEN, ostype))
+>>>>>>> 8fe5c4c... stuff
         except ValueError:
             LOG.warning(
                 _("Failed to extract instance support from %s"), capability)

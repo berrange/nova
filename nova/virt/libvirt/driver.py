@@ -4659,6 +4659,16 @@ class LibvirtDriver(driver.ComputeDriver):
         :return: see above description
 
         """
+        # TODO(berrange): This method exists for legacy backcompat
+        # where a guest on a new Nova node is being migrated to an
+        # old Nova node, which will try to validate the old host
+        # CPU model instead of the guest CPU model.
+        #
+        # Delete me once enough time has passed that we can assume
+        # all nodes support guest CPU model reporting. If we do want
+        # to keep it long term this should change over to use the
+        # nova.virt.hardware.VirtCPUModel() class, as the new driver
+        # method get_instance_cpu_config() does
 
         caps = self._get_host_capabilities()
         cpu_info = dict()
@@ -4678,15 +4688,6 @@ class LibvirtDriver(driver.ComputeDriver):
             features.append(f.name)
         cpu_info['features'] = features
 
-        # TODO(berrange): why do we bother converting the
-        # libvirt capabilities XML into a special JSON format ?
-        # The data format is different across all the drivers
-        # so we could just return the raw capabilities XML
-        # which 'compare_cpu' could use directly
-        #
-        # That said, arch_filter.py now seems to rely on
-        # the libvirt drivers format which suggests this
-        # data format needs to be standardized across drivers
         return jsonutils.dumps(cpu_info)
 
     def _get_pcidev_info(self, devname):
@@ -4930,6 +4931,35 @@ class LibvirtDriver(driver.ComputeDriver):
 
         return data
 
+    def get_instance_cpu_config(self, context, instance):
+        """Retrieve instance xml config infomation."""
+        dom = self._lookup_by_name(instance["name"])
+        config = vconfig.LibvirtConfigGuest()
+        config.parse_str(dom.XMLDesc(
+            libvirt.VIR_DOMAIN_XML_UPDATE_CPU |
+            libvirt.VIR_DOMAIN_XML_MIGRATABLE))
+
+        if config.cpu is None:
+            return None
+
+        cpu = config.cpu
+        features = [hardware.VirtCPUFeature(
+            f.name, f.policy) for f in cpu.features]
+
+        if cpu.sockets is None:
+            topo = None
+        else:
+            topo = hardware.VirtCPUTopology(
+                cpu.sockets, cpu.cores, cpu.threads)
+
+        return hardware.VirtCPUModel(
+            mode=cpu.mode,
+            name=cpu.model,
+            features=features,
+            vendor=cpu.vendor,
+            topology=topo,
+            match=cpu.match)
+
     def check_instance_shared_storage_local(self, context, instance):
         dirpath = libvirt_utils.get_instance_path(instance)
 
@@ -4950,7 +4980,7 @@ class LibvirtDriver(driver.ComputeDriver):
     def check_instance_shared_storage_cleanup(self, context, data):
         fileutils.delete_if_exists(data["filename"])
 
-    def check_can_live_migrate_destination(self, context, instance,
+    def check_can_live_migrate_destination(self, context, instance, cpu,
                                            src_compute_info, dst_compute_info,
                                            block_migration=False,
                                            disk_over_commit=False):
@@ -4961,6 +4991,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
         :param context: security context
         :param instance: nova.db.sqlalchemy.models.Instance
+        :param cpu: nova.virt.hardware.VirtCPUModel or None
         :param block_migration: if true, prepare for block migration
         :param disk_over_commit: if true, allow disk over commit
         :returns: a dict containing:
@@ -4975,9 +5006,8 @@ class LibvirtDriver(driver.ComputeDriver):
             disk_available_mb = \
                     (disk_available_gb * units.Ki) - CONF.reserved_host_disk_mb
 
-        # Compare CPU
-        source_cpu_info = src_compute_info['cpu_info']
-        self._compare_cpu(source_cpu_info)
+        src_host_cpu = src_compute_info['cpu_info']
+        self._compare_cpu(cpu, src_host_cpu)
 
         # Create file on storage, to be checked on source host
         filename = self._create_shared_storage_test_file()
@@ -5114,34 +5144,58 @@ class LibvirtDriver(driver.ComputeDriver):
                        'necessary': necessary})
             raise exception.MigrationPreCheckError(reason=reason)
 
-    def _compare_cpu(self, cpu_info):
-        """Checks the host cpu is compatible to a cpu given by xml.
-        "xml" must be a part of libvirt.openAuth(...).getCapabilities().
-        return values follows by virCPUCompareResult.
-        if 0 > return value, do live migration.
-        'http://libvirt.org/html/libvirt-libvirt.html#virCPUCompareResult'
+    def _compare_cpu(self, guest_cpu, host_cpu_str):
+        """Check the host is compatible with the requested CPU
 
-        :param cpu_info: json string of cpu feature from _get_cpu_info()
+        :param guest_cpu: hardware.VirtCPUModel or None
+        :param host_cpu_str: JSON from _get_cpu_info() method
+
+        If the 'guest_cpu' parameter is not None, this will be
+        validated for migration compatibility with the host.
+        Otherwise the 'host_cpu_str' JSON string will be used for
+        validation.
+
         :returns:
             None. if given cpu info is not compatible to this server,
             raise exception.
         """
 
-        # NOTE(berendt): virConnectCompareCPU not working for Xen
-        if CONF.libvirt.virt_type == 'xen':
-            return 1
+        # NOTE(berendt): virConnectCompareCPU only works for QEMU/KVM
+        if CONF.libvirt.virt_type not in ['qemu', 'kvm']:
+            return
 
-        info = jsonutils.loads(cpu_info)
-        LOG.info(_LI('Instance launched has CPU info: %s'), cpu_info)
-        cpu = vconfig.LibvirtConfigCPU()
-        cpu.arch = info['arch']
-        cpu.model = info['model']
-        cpu.vendor = info['vendor']
-        cpu.sockets = info['topology']['sockets']
-        cpu.cores = info['topology']['cores']
-        cpu.threads = info['topology']['threads']
-        for f in info['features']:
-            cpu.add_feature(vconfig.LibvirtConfigCPUFeature(f))
+        cpu = vconfig.LibvirtConfigGuestCPU()
+        if guest_cpu is None:
+            # TODO(berrange): delete this branch soon - see
+            # comment in _get_cpu_info method
+            if host_cpu_str is None:
+                return
+
+            host_cpu = jsonutils.loads(host_cpu_str)
+            LOG.info(_LI('Source host has CPU info: %s'), host_cpu_str)
+            cpu.model = host_cpu['model']
+            cpu.vendor = host_cpu['vendor']
+            cpu.sockets = host_cpu['topology']['sockets']
+            cpu.cores = host_cpu['topology']['cores']
+            cpu.threads = host_cpu['topology']['threads']
+            for f in host_cpu['features']:
+                cpu.add_feature(vconfig.LibvirtConfigCPUFeature(f))
+        else:
+            cpu.mode = guest_cpu.mode
+            cpu.model = guest_cpu.name
+            cpu.vendor = guest_cpu.vendor
+            cpu.match = guest_cpu.match
+
+            if guest_cpu.topology is not None:
+                cpu.sockets = guest_cpu.topology.sockets
+                cpu.cores = guest_cpu.topology.cores
+                cpu.threads = guest_cpu.topology.threads
+
+            for f in guest_cpu.features:
+                xf = vconfig.LibvirtConfigGuestCPUFeature()
+                xf.name = f.name
+                xf.policy = f.policy
+                cpu.features.add(xf)
 
         u = "http://libvirt.org/html/libvirt-libvirt.html#virCPUCompareResult"
         m = _("CPU doesn't have compatibility.\n\n%(ret)s\n\nRefer to %(u)s")

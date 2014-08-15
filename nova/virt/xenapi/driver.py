@@ -476,17 +476,19 @@ class XenAPIDriver(driver.ComputeDriver):
         # In XenAPI we do not assume instances running upon host initialization
         return
 
-    def check_can_live_migrate_destination(self, context, instance,
+    def check_can_live_migrate_destination(self, context, instance, cpu,
                 src_compute_info, dst_compute_info,
                 block_migration=False, disk_over_commit=False):
         """Check if it is possible to execute live migration.
 
         :param context: security context
         :param instance: nova.db.sqlalchemy.models.Instance object
+        :param cpu: nova.virt.hardware.VirtCPUModel or None
         :param block_migration: if true, prepare for block migration
         :param disk_over_commit: if true, allow disk over commit
 
         """
+        # TODO(berrange): handle CPU config compat comparison
         return self._vmops.check_can_live_migrate_destination(context,
                                                               instance,
                                                               block_migration,

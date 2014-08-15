@@ -42,6 +42,7 @@ from nova.tests import fake_instance
 from nova.tests.objects import test_instance_fault
 from nova.tests.objects import test_instance_info_cache
 from nova import utils
+from nova.virt import hardware
 
 
 CONF = cfg.CONF
@@ -1241,6 +1242,9 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
         disk_over_commit = 'disk_over_commit'
         src_info = 'src_info'
         dest_info = 'dest_info'
+        cpu = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_CUSTOM,
+            name="Opteron_G4")
         dest_check_data = dict(foo='bar')
         mig_data = dict(cow='moo')
         expected_result = dict(mig_data)
@@ -1252,6 +1256,8 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
         self.mox.StubOutWithMock(self.compute.driver,
                                  'check_can_live_migrate_destination')
         self.mox.StubOutWithMock(self.compute.compute_rpcapi,
+                                 'get_instance_cpu_config')
+        self.mox.StubOutWithMock(self.compute.compute_rpcapi,
                                  'check_can_live_migrate_source')
         self.mox.StubOutWithMock(self.compute.driver,
                                  'check_can_live_migrate_destination_cleanup')
@@ -1261,8 +1267,11 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
         self.compute._get_compute_info(self.context,
                                        CONF.host).AndReturn(dest_info)
         self.compute.driver.check_can_live_migrate_destination(
-                self.context, instance, src_info, dest_info,
+                self.context, instance, mox.IsA(hardware.VirtCPUModel),
+                src_info, dest_info,
                 block_migration, disk_over_commit).AndReturn(dest_check_data)
+        self.compute.compute_rpcapi.get_instance_cpu_config(self.context,
+                instance).AndReturn(cpu.to_json())
 
         mock_meth = self.compute.compute_rpcapi.check_can_live_migrate_source(
                 self.context, instance, dest_check_data)

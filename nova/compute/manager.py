@@ -86,6 +86,7 @@ from nova import utils
 from nova.virt import block_device as driver_block_device
 from nova.virt import driver
 from nova.virt import event as virtevent
+from nova.virt import hardware
 from nova.virt import storage_users
 from nova.virt import virtapi
 from nova import volume
@@ -4832,12 +4833,21 @@ class ComputeManager(manager.Manager):
         :param disk_over_commit: if true, allow disk over commit
         :returns: a dict containing migration info
         """
+        cpu_json = self.compute_rpcapi.get_instance_cpu_config(
+            ctxt, instance)
+
+        if cpu_json is not None:
+            cpu = hardware.VirtCPUModel.from_json(cpu_json)
+        else:
+            cpu = None
+
         src_compute_info = obj_base.obj_to_primitive(
             self._get_compute_info(ctxt, instance.host))
+
         dst_compute_info = obj_base.obj_to_primitive(
             self._get_compute_info(ctxt, CONF.host))
         dest_check_data = self.driver.check_can_live_migrate_destination(ctxt,
-            instance, src_compute_info, dst_compute_info,
+            instance, cpu, src_compute_info, dst_compute_info,
             block_migration, disk_over_commit)
         migrate_data = {}
         try:
@@ -4918,6 +4928,14 @@ class ComputeManager(manager.Manager):
                      network_info=network_info)
 
         return pre_live_migration_data
+
+    def get_instance_cpu_config(self, context, instance):
+        """Get instance CPU model info from hypervisor."""
+        cpu = self.driver.get_instance_cpu_config(context,
+                                                  instance)
+        if cpu is None:
+            return None
+        return cpu.to_json()
 
     @wrap_exception()
     @wrap_instance_fault

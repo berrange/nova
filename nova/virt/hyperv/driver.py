@@ -155,10 +155,11 @@ class HyperVDriver(driver.ComputeDriver):
             network_info,
             block_migration)
 
-    def check_can_live_migrate_destination(self, context, instance,
+    def check_can_live_migrate_destination(self, context, instance, cpu,
                                            src_compute_info, dst_compute_info,
                                            block_migration=False,
                                            disk_over_commit=False):
+        # TODO(berrange): handle CPU config compat comparison
         return self._livemigrationops.check_can_live_migrate_destination(
             context, instance, src_compute_info, dst_compute_info,
             block_migration, disk_over_commit)

@@ -17,6 +17,7 @@ import collections
 from oslo.config import cfg
 import six
 
+from nova.compute import arch as compute_arch
 from nova import context
 from nova import exception
 from nova.i18n import _
@@ -530,6 +531,168 @@ class VirtCPUTopology(object):
         return VirtCPUTopology.get_desirable_configs(flavor,
                                                      image_meta,
                                                      allow_threads)[0]
+
+    def _to_dict(self):
+        return {
+            'sockets': self.sockets,
+            'cores': self.cores,
+            'threads': self.threads
+        }
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(**data)
+
+
+class VirtCPUFeature(object):
+    """Class for representing guest CPU feature flag.
+
+    There are currently five policies for how a feature
+    flag is exposed to the guest
+
+    - POLICY_FORCE - the feature will be enabled even if not
+      present in the host CPU
+
+    - POLICY_REQUIRE - the guest will fail to start if the
+      feature is not present in the host CPU
+
+    - POLICY_OPTIONAL - the feature will be enabled if it is
+      present in the host CPU, disabled otherwise.
+
+    - POLICY_DISABLE - the feature will be disabled if it is
+      present in the host CPU, even if implied by the CPU
+      model name.
+
+    - POLICY_FORBID - the guest will fail to start if the
+      feature is present in the host CPU
+
+    """
+
+    POLICY_FORCE = "force"
+    POLICY_REQUIRE = "require"
+    POLICY_OPTIONAL = "optional"
+    POLICY_DISABLE = "disable"
+    POLICY_FORBID = "forbid"
+
+    def __init__(self, name, policy=POLICY_REQUIRE):
+        self.name = name
+        self.policy = policy
+
+    def _to_dict(self):
+        return {'name': self.name,
+                'policy': self.policy}
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(**data)
+
+
+class VirtCPUModel(object):
+    """Class for representing guest CPU model.
+
+    There are currently three ways to represent the guest
+    CPU model, chosen using the mode attribute.
+
+    - MODE_CUSTOM - a named CPU model & feature set. The
+      set of valid names is hypervisor dependant.
+
+    - MODE_HOST_MODEL - a named CPU model & feature set
+      automatically chosen based on the host CPU.
+
+    - MODE_HOST_PASSTHROUGH - direct passthrough of the
+      host CPU without changes. It is not possible to
+      migrate guests with this model.
+
+    When determining if a host CPU is compatible with the
+    requested guest CPU, there are a number of match options
+
+    - MATCH_NONE - no match policy. Used if the CPU model
+      instance represents a host CPU only.
+
+    - MATCH_MINIMUM - the guest CPU will be given at least
+      the requested features. Other features from the host
+      may be exposed to the guest depending on hypervisor
+      choice.
+
+    - MATCH_EXACT - only the exact listed features will be
+      exposed to the guest, even if the hypervisor supports
+      more features.
+
+    - MATCH_STRICT - only the exact listed features will be
+      exposed to the guest, and if the hypervisor supports
+      more features it will refuse to start the guest.
+    """
+
+    # TODO(berrange): VMWare/Hyper-V might require us to
+    # define more MODE types in future. This is at least
+    # sufficient for libvirt right now and could cope with
+    # some other hypervisor configs too.
+    MODE_CUSTOM = "custom"
+    MODE_HOST_MODEL = "host-model"
+    MODE_HOST_PASSTHROUGH = "host-passthrough"
+
+    MATCH_NONE = "none"
+    MATCH_MINIMUM = "minimum"
+    MATCH_EXACT = "exact"
+    MATCH_STRICT = "strict"
+
+    def __init__(self,
+                 mode,
+                 name=None,
+                 arch=None,
+                 features=None,
+                 vendor=None,
+                 topology=None,
+                 match=MATCH_NONE):
+        if features is None:
+            features = []
+
+        self.mode = mode
+        self.arch = compute_arch.canonicalize(arch)
+        self.name = name
+        self.features = features
+        self.vendor = vendor
+        self.topology = topology
+        self.match = match
+
+    def _to_dict(self):
+        data = {'mode': self.mode,
+                'features': [feat._to_dict() for feat in self.features]}
+
+        if self.arch is not None:
+            data['arch'] = self.arch
+        if self.name is not None:
+            data['name'] = self.name
+        if self.vendor is not None:
+            data['vendor'] = self.vendor
+        if self.topology is not None:
+            data['topology'] = self.topology._to_dict()
+        if self.match is not None:
+            data['match'] = self.match
+
+        return data
+
+    @classmethod
+    def _from_dict(cls, data):
+        features = [VirtCPUFeature._from_dict(f) for f in data['features']]
+        if data.get('topology', None) is not None:
+            topo = VirtCPUTopology._from_dict(data['topology'])
+        else:
+            topo = None
+        return cls(mode=data['mode'],
+                   arch=data.get('arch', None),
+                   name=data.get('name', None),
+                   vendor=data.get('vendor', None),
+                   features=features,
+                   topology=topo,
+                   match=data.get('match', None))
+
+    def to_json(self):
+        return jsonutils.dumps(self._to_dict())
+
+    @classmethod
+    def from_json(cls, json_string):
+        return cls._from_dict(jsonutils.loads(json_string))
 
 
 class VirtNUMATopologyCell(object):

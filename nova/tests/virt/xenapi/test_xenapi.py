@@ -3359,7 +3359,7 @@ class XenAPILiveMigrateTestCase(stubs.XenAPITestBaseNoDB):
                     }
         result = self.conn.check_can_live_migrate_destination(self.context,
                               {'host': 'host'},
-                              {}, {},
+                              None, {}, {},
                               True, False)
         self.assertEqual(expected, result)
 
@@ -3377,7 +3377,7 @@ class XenAPILiveMigrateTestCase(stubs.XenAPITestBaseNoDB):
         self.assertRaises(exception.MigrationError,
                           self.conn.check_can_live_migrate_destination,
                           self.context, {'host': 'host'},
-                          {}, {},
+                          None, {}, {},
                           True, False)
 
     def test_check_can_live_migrate_destination_block_migration_fails(self):
@@ -3387,7 +3387,7 @@ class XenAPILiveMigrateTestCase(stubs.XenAPITestBaseNoDB):
         self.assertRaises(exception.MigrationError,
                           self.conn.check_can_live_migrate_destination,
                           self.context, {'host': 'host'},
-                          {}, {},
+                          None, {}, {},
                           True, False)
 
     def _add_default_live_migrate_stubs(self, conn):
@@ -3505,7 +3505,7 @@ class XenAPILiveMigrateTestCase(stubs.XenAPITestBaseNoDB):
         self.stubs.Set(db, "aggregate_get_by_host",
                 fake_aggregate_get_by_host)
         self.conn.check_can_live_migrate_destination(self.context,
-                {'host': 'host'}, False, False)
+                {'host': 'host'}, None, {}, {}, False, False)
 
     def test_check_can_live_migrate_fails(self):
         stubs.stubout_session(self.stubs, stubs.FakeSessionForVMTests)
@@ -3520,7 +3520,8 @@ class XenAPILiveMigrateTestCase(stubs.XenAPITestBaseNoDB):
                       fake_aggregate_get_by_host)
         self.assertRaises(exception.MigrationError,
                           self.conn.check_can_live_migrate_destination,
-                          self.context, {'host': 'host'}, None, None)
+                          self.context, {'host': 'host'},
+                          None, {}, {}, None, None)
 
     def test_live_migration(self):
         stubs.stubout_session(self.stubs, stubs.FakeSessionForVMTests)

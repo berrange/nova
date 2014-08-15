@@ -779,7 +779,7 @@ class ComputeDriver(object):
         """
         pass
 
-    def check_can_live_migrate_destination(self, context, instance,
+    def check_can_live_migrate_destination(self, context, instance, cpu,
                                            src_compute_info, dst_compute_info,
                                            block_migration=False,
                                            disk_over_commit=False):
@@ -790,6 +790,7 @@ class ComputeDriver(object):
 
         :param context: security context
         :param instance: nova.db.sqlalchemy.models.Instance
+        :param cpu: nova.virt.hardware.VirtCPUModel or None
         :param src_compute_info: Info about the sending machine
         :param dst_compute_info: Info about the receiving machine
         :param block_migration: if true, prepare for block migration
@@ -797,6 +798,16 @@ class ComputeDriver(object):
         :returns: a dict containing migration info (hypervisor-dependent)
         """
         raise NotImplementedError()
+
+    def get_instance_cpu_config(self, context, instance):
+        """Return guest instance cpu model description
+
+        :param context: security context
+        :param instance_ref: nova.db.sqlalchemy.models.Instance
+
+        :returns: a nova.virt.hardware.VirtCPUModel object or None
+        """
+        return None
 
     def check_can_live_migrate_destination_cleanup(self, context,
                                                    dest_check_data):

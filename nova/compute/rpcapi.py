@@ -274,6 +274,8 @@ class ComputeAPI(object):
         ... Juno supports message version 3.35.  So, any changes to
         existing methods in 3.x after that point should be done such that they
         can handle the version_cap being set to 3.35.
+
+        * 3.36 - Add get_instance_cpu_config()
     '''
 
     VERSION_ALIASES = {
@@ -896,6 +898,14 @@ class ComputeAPI(object):
                 security_groups=security_groups,
                 block_device_mapping=block_device_mapping, node=node,
                 limits=limits)
+
+    def get_instance_cpu_config(self, ctxt, instance):
+        if not self.client.can_send_version('3.36'):
+            return None
+
+        cctxt = self.client.prepare(server=_compute_host(None, instance),
+                                    version='3.36')
+        return cctxt.call(ctxt, 'get_instance_cpu_config', instance=instance)
 
 
 class SecurityGroupAPI(object):

@@ -667,6 +667,78 @@ class VCPUTopologyTest(test.NoDBTestCase):
             self.assertEqual(topo_test["expect"][2], topology.threads)
 
 
+class CPUModelTestCase(test.NoDBTestCase):
+
+    def assertTopologyEqual(self, expect, actual):
+        if expect is None:
+            self.assertIsNone(actual)
+            return
+
+        self.assertIsNotNone(actual)
+        self.assertEqual(expect.sockets, actual.sockets)
+        self.assertEqual(expect.cores, actual.cores)
+        self.assertEqual(expect.threads, actual.threads)
+
+    def assertFeatureEqual(self, expect, actual):
+        self.assertEqual(expect.name, actual.name)
+        self.assertEqual(expect.policy, actual.policy)
+
+    def assertCPUEqual(self, expect, actual):
+        self.assertEqual(expect.name, actual.name)
+        self.assertEqual(expect.vendor, actual.vendor)
+        self.assertEqual(expect.match, actual.match)
+        self.assertEqual(expect.mode, actual.mode)
+        self.assertEqual(len(expect.features),
+                         len(actual.features))
+        self.assertTopologyEqual(expect.topology,
+                                 actual.topology)
+        for i in range(len(expect.features)):
+            self.assertFeatureEqual(expect.features[i],
+                                    actual.features[i])
+
+    def test_json_serialization_custom(self):
+        old_cpu = hw.VirtCPUModel(
+            mode=hw.VirtCPUModel.MODE_CUSTOM,
+            name="Opteron_G4",
+            vendor="AMD",
+            features=[
+                hw.VirtCPUFeature(
+                    name="tbm",
+                    policy=hw.VirtCPUFeature.POLICY_FORCE),
+                hw.VirtCPUFeature(
+                    name="sse4.1",
+                    policy=hw.VirtCPUFeature.POLICY_DISABLE),
+            ],
+            match=hw.VirtCPUModel.MATCH_STRICT)
+
+        json = old_cpu.to_json()
+        new_cpu = hw.VirtCPUModel.from_json(json)
+
+        self.assertCPUEqual(old_cpu, new_cpu)
+
+    def test_json_serialization_host_model(self):
+        old_cpu = hw.VirtCPUModel(
+            mode=hw.VirtCPUModel.MODE_HOST_MODEL,
+            vendor="AMD",
+            match=hw.VirtCPUModel.MATCH_STRICT)
+
+        json = old_cpu.to_json()
+        new_cpu = hw.VirtCPUModel.from_json(json)
+
+        self.assertCPUEqual(old_cpu, new_cpu)
+
+    def test_json_serialization_host_passthrough(self):
+        old_cpu = hw.VirtCPUModel(
+            mode=hw.VirtCPUModel.MODE_HOST_PASSTHROUGH,
+            topology=hw.VirtCPUTopology(1, 2, 4),
+            match=hw.VirtCPUModel.MATCH_STRICT)
+
+        json = old_cpu.to_json()
+        new_cpu = hw.VirtCPUModel.from_json(json)
+
+        self.assertCPUEqual(old_cpu, new_cpu)
+
+
 class NUMATopologyTest(test.NoDBTestCase):
 
     def test_topology_constraints(self):

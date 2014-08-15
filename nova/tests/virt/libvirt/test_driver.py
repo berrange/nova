@@ -454,6 +454,9 @@ class LibvirtConnTestCase(test.TestCase):
                             <feature policy='require' name='hypervisor'/>
                           </cpu>"""
 
+            def compareCPU(self, xml, flags):
+                return 1
+
             def getCapabilities(self):
                 """Ensure standard capabilities being returned."""
                 return """<capabilities>
@@ -3419,6 +3422,39 @@ class LibvirtConnTestCase(test.TestCase):
                 break
         self.assertTrue(no_exist)
 
+    @mock.patch.object(libvirt_driver.LibvirtDriver, "_lookup_by_name")
+    @mock.patch.object(libvirt.virConnect, "getLibVersion")
+    def test_get_instance_cpu_config_custom(self, mock_version, mock_lookup):
+        mock_version.return_value = (0 * 1000 * 1000) + (9 * 1000) + 7
+
+        conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+        instance_ref = db.instance_create(self.context, self.test_instance)
+        image_meta = {}
+        self.flags(cpu_mode="custom",
+                   cpu_model='Penryn',
+                   group='libvirt')
+        disk_info = blockinfo.get_disk_info('kvm',
+                                            instance_ref)
+        conf = conn._get_guest_config(instance_ref,
+                                      _fake_network_info(self.stubs, 1),
+                                      image_meta, disk_info)
+
+        class FakeDomain(object):
+            def XMLDesc(self, flags):
+                return conf.to_xml()
+
+        mock_lookup.return_value = FakeDomain()
+
+        cpu_expect = '''{
+          "topology": {"cores": 1, "threads": 1, "sockets": 1},
+          "match": "exact", "mode": "custom",
+          "name": "Penryn", "features": []
+        }'''
+
+        cpu = conn.get_instance_cpu_config(self.context, instance_ref)
+        self.assertThat(cpu._to_dict(),
+                        matchers.DictMatches(jsonutils.loads(cpu_expect)))
+
     def test_xml_and_uri_no_ramdisk_no_kernel(self):
         instance_data = dict(self.test_instance)
         self._check_xml_and_uri(instance_data,
@@ -5192,22 +5228,37 @@ class LibvirtConnTestCase(test.TestCase):
         instance_ref = db.instance_create(self.context, self.test_instance)
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
         compute_info = {'disk_available_least': 400,
-                        'cpu_info': 'asdf',
-                        }
+                        'cpu_info': 'asdf'}
         filename = "file"
+        cpu = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_CUSTOM,
+            name="Opteron_G3",
+            features=[hardware.VirtCPUFeature(
+                name="sse3",
+                policy=hardware.VirtCPUFeature.POLICY_DISABLE)],
+            topology=hardware.VirtCPUTopology(1, 2, 4),
+            vendor="AMD",
+            match=hardware.VirtCPUModel.MATCH_STRICT)
+        cpuxml = '''<cpu mode="custom" match="strict">
+  <model>Opteron_G3</model>
+  <vendor>AMD</vendor>
+  <topology sockets="1" cores="2" threads="4"/>
+  <feature name="sse3" policy="disable"/>
+</cpu>
+'''
 
         self.mox.StubOutWithMock(conn, '_create_shared_storage_test_file')
-        self.mox.StubOutWithMock(conn, '_compare_cpu')
+        self.mox.StubOutWithMock(conn._conn, 'compareCPU')
 
         # _check_cpu_match
-        conn._compare_cpu("asdf")
+        conn._conn.compareCPU(cpuxml, 0).AndReturn(1)
 
         # mounted_on_same_shared_storage
         conn._create_shared_storage_test_file().AndReturn(filename)
 
         self.mox.ReplayAll()
         return_value = conn.check_can_live_migrate_destination(self.context,
-                instance_ref, compute_info, compute_info, True)
+                instance_ref, cpu, compute_info, compute_info, True)
         self.assertThat({"filename": "file",
                          'image_type': 'default',
                          'disk_available_mb': 409600,
@@ -5220,19 +5271,60 @@ class LibvirtConnTestCase(test.TestCase):
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
         compute_info = {'cpu_info': 'asdf'}
         filename = "file"
+        cpu = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_HOST_MODEL,
+            match=hardware.VirtCPUModel.MATCH_STRICT)
+        cpuxml = '''<cpu mode="host-model" match="strict"/>\n'''
 
         self.mox.StubOutWithMock(conn, '_create_shared_storage_test_file')
-        self.mox.StubOutWithMock(conn, '_compare_cpu')
+        self.mox.StubOutWithMock(conn._conn, 'compareCPU')
 
         # _check_cpu_match
-        conn._compare_cpu("asdf")
+        conn._conn.compareCPU(cpuxml, 0).AndReturn(1)
 
         # mounted_on_same_shared_storage
         conn._create_shared_storage_test_file().AndReturn(filename)
 
         self.mox.ReplayAll()
         return_value = conn.check_can_live_migrate_destination(self.context,
-                instance_ref, compute_info, compute_info, False)
+                instance_ref, cpu, compute_info, compute_info, False)
+        self.assertThat({"filename": "file",
+                         "image_type": 'default',
+                         "block_migration": False,
+                         "disk_over_commit": False,
+                         "disk_available_mb": None},
+                        matchers.DictMatches(return_value))
+
+    def test_check_can_live_migrate_dest_no_guest_cpu_info(self):
+        instance_ref = db.instance_create(self.context, self.test_instance)
+        conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
+        compute_info = {'cpu_info': jsonutils.dumps({
+            "vendor": "AMD",
+            "features": ["sse3"],
+            "model": "Opteron_G3",
+            "topology": {"cores": 2, "threads": 1, "sockets": 4}
+        })}
+        filename = "file"
+        cpuxml = '''<cpu match="exact">
+  <model>Opteron_G3</model>
+  <vendor>AMD</vendor>
+  <topology sockets="4" cores="2" threads="1"/>
+  <feature name="sse3"/>
+</cpu>
+'''
+
+        self.mox.StubOutWithMock(conn, '_create_shared_storage_test_file')
+        self.mox.StubOutWithMock(conn._conn, 'compareCPU')
+
+        # _check_cpu_match
+        conn._conn.compareCPU(cpuxml, 0).AndReturn(1)
+
+        # mounted_on_same_shared_storage
+        conn._create_shared_storage_test_file().AndReturn(filename)
+
+        self.mox.ReplayAll()
+        return_value = conn.check_can_live_migrate_destination(self.context,
+                instance_ref, None, compute_info, compute_info, False)
         self.assertThat({"filename": "file",
                          "image_type": 'default',
                          "block_migration": False,
@@ -5244,17 +5336,21 @@ class LibvirtConnTestCase(test.TestCase):
         instance_ref = db.instance_create(self.context, self.test_instance)
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
         compute_info = {'cpu_info': 'asdf'}
+        cpu = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_HOST_MODEL,
+            match=hardware.VirtCPUModel.MATCH_STRICT)
+        cpuxml = '''<cpu mode="host-model" match="strict"/>\n'''
 
-        self.mox.StubOutWithMock(conn, '_compare_cpu')
+        self.mox.StubOutWithMock(conn._conn, 'compareCPU')
 
-        conn._compare_cpu("asdf").AndRaise(exception.InvalidCPUInfo(
-                                              reason='foo')
-                                           )
+        # _check_cpu_match
+        conn._conn.compareCPU(cpuxml, 0).AndRaise(
+            exception.InvalidCPUInfo(reason='foo'))
 
         self.mox.ReplayAll()
         self.assertRaises(exception.InvalidCPUInfo,
                           conn.check_can_live_migrate_destination,
-                          self.context, instance_ref,
+                          self.context, instance_ref, cpu,
                           compute_info, compute_info, False)
 
     def test_check_can_live_migrate_dest_cleanup_works_correctly(self):

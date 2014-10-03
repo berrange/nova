@@ -45,7 +45,7 @@ class XenAPIDriverTestCase(stubs.XenAPITestBaseNoDB):
                 'supported_instances': arch.X86_64,
                 'host_cpu_info': {'cpu_count': 50},
                 'vcpus_used': 10,
-                'pci_passthrough_devices': ''}
+                'pci_devices': []}
 
     def test_available_resource(self):
         driver = self._get_driver()

@@ -90,56 +90,46 @@ class FakeVirtDriver(driver.ComputeDriver):
         self.local_gb_used = 0
         self.pci_support = pci_support
         self.pci_devices = [
-            {
-                'label': 'label_8086_0443',
-                'dev_type': 'type-VF',
-                'compute_node_id': 1,
-                'address': '0000:00:01.1',
-                'product_id': '0443',
-                'vendor_id': '8086',
-                'status': 'available',
-                'extra_k1': 'v1'
-            },
-            {
-                'label': 'label_8086_0443',
-                'dev_type': 'type-VF',
-                'compute_node_id': 1,
-                'address': '0000:00:01.2',
-                'product_id': '0443',
-                'vendor_id': '8086',
-                'status': 'available',
-                'extra_k1': 'v1'
-            },
-            {
-                'label': 'label_8086_0443',
-                'dev_type': 'type-PF',
-                'compute_node_id': 1,
-                'address': '0000:00:01.0',
-                'product_id': '0443',
-                'vendor_id': '8086',
-                'status': 'available',
-                'extra_k1': 'v1'
-            },
-            {
-                'label': 'label_8086_0123',
-                'dev_type': 'type-PCI',
-                'compute_node_id': 1,
-                'address': '0000:00:01.0',
-                'product_id': '0123',
-                'vendor_id': '8086',
-                'status': 'available',
-                'extra_k1': 'v1'
-            },
-            {
-                'label': 'label_8086_7891',
-                'dev_type': 'type-VF',
-                'compute_node_id': 1,
-                'address': '0000:00:01.0',
-                'product_id': '7891',
-                'vendor_id': '8086',
-                'status': 'available',
-                'extra_k1': 'v1'
-            },
+            hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                dev_id='dev0000:00:01.1',
+                label='label_8086_0443',
+                product_id= '0443',
+                vendor_id= '8086',
+                address=hardware.VirtPCIAddressInfo(0, 0, 1, 1),
+            ),
+            hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                dev_id='dev0000:00:01.2',
+                label='label_8086_0443',
+                product_id= '0443',
+                vendor_id= '8086',
+                address=hardware.VirtPCIAddressInfo(0, 0, 1, 2),
+            ),
+            hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC,
+                dev_id='dev0000:00:01.0',
+                label='label_8086_0443',
+                product_id= '0443',
+                vendor_id= '8086',
+                address=hardware.VirtPCIAddressInfo(0, 0, 1, 0),
+            ),
+            hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+                dev_id='dev0000:00:02.0',
+                label='label_8086_0123',
+                product_id= '0123',
+                vendor_id= '8086',
+                address=hardware.VirtPCIAddressInfo(0, 0, 2, 0),
+            ),
+            hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                dev_id='dev0000:00:03.1',
+                label='label_8086_7891',
+                product_id= '7891',
+                vendor_id= '8086',
+                address=hardware.VirtPCIAddressInfo(0, 0, 3, 1),
+            ),
         ] if self.pci_support else []
         self.pci_stats = [
             {
@@ -175,7 +165,7 @@ class FakeVirtDriver(driver.ComputeDriver):
                 self.numa_topology.to_json() if self.numa_topology else None),
         }
         if self.pci_support:
-            d['pci_passthrough_devices'] = jsonutils.dumps(self.pci_devices)
+            d['pci_devices'] = self.pci_devices
         if hasattr(self, 'stats'):
             d['stats'] = self.stats
         return d

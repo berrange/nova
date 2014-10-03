@@ -146,8 +146,8 @@ class HostState(object):
         self._stats = {}
         self.update_status()
 
-    def _get_passthrough_devices(self):
-        """Get a list pci devices that are available for pci passthtough.
+    def _get_pci_devices(self):
+        """Get a list pci devices on the host.
 
         We use a plugin to get the output of the lspci command runs on dom0.
         From this list we will extract pci devices that are using the pciback
@@ -184,18 +184,28 @@ class HostState(object):
                     _("Failed to parse information about"
                       " a pci device for passthrough"))
 
-            type_pci = self._session.call_plugin_serialized(
-                'xenhost', 'get_pci_type', slot_id[0])
+            addrbits1 = slot_id[0].split(":")
+            addrbits2 = addrbits1[2].split(".")
 
-            return {'label': '_'.join(['label',
-                                       vendor_id[0],
-                                       product_id[0]]),
-                    'vendor_id': vendor_id[0],
-                    'product_id': product_id[0],
-                    'address': slot_id[0],
-                    'dev_id': '_'.join(['pci', slot_id[0]]),
-                    'dev_type': type_pci,
-                    'status': 'available'}
+            addr = hardware.VirtPCIAddressInfo(
+                addrbits1[0], addrbits1[1],
+                addrbits2[0], addrbits2[1])
+
+            # XXX what format was this in ??!?!
+            # Guessing it doesn't match what we had
+            # done for libvirt originally ?
+            # type_pci = self._session.call_plugin_serialized(
+            #     'xenhost', 'get_pci_type', slot_id[0])
+
+            return hardware.VirtPCIDeviceInfo(
+                dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+                dev_id='_'.join(['pci', slot_id[0]]),
+                label='_'.join(['label',
+                                vendor_id[0],
+                                product_id[0]]),
+                vendor_id=int(vendor_id[0], 16),
+                product_id=int(product_id[0], 16),
+                address=addr)
 
         # Devices are separated by a blank line. That is why we
         # use "\n\n" as separator.
@@ -262,7 +272,7 @@ class HostState(object):
             for vm_ref, vm_rec in vm_utils.list_vms(self._session):
                 vcpus_used = vcpus_used + int(vm_rec['VCPUs_max'])
             data['vcpus_used'] = vcpus_used
-            data['pci_passthrough_devices'] = self._get_passthrough_devices()
+            data['pci_devices'] = self._get_pci_devices()
             self._stats = data
 
 

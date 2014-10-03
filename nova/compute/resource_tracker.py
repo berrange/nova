@@ -335,18 +335,20 @@ class ResourceTracker(object):
 
     @utils.synchronized(COMPUTE_RESOURCE_SEMAPHORE)
     def _update_available_resource(self, context, resources):
-        if 'pci_passthrough_devices' in resources:
+        if 'pci_devices' in resources:
             if not self.pci_tracker:
                 self.pci_tracker = pci_manager.PciDevTracker()
 
             devs = []
-            for dev in jsonutils.loads(resources.pop(
-                'pci_passthrough_devices')):
-                if dev['dev_type'] == 'type-PF':
+            for dev in resources.pop(
+                'pci_devices'):
+                if (dev.dev_type ==
+                    hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC):
                     continue
 
-                if self.pci_filter.device_assignable(dev):
-                    devs.append(dev)
+                devdict = dev._to_dict()
+                if self.pci_filter.device_assignable(devdict):
+                    devs.append(devdict)
 
             self.pci_tracker.set_hvdevs(devs)
 
@@ -471,10 +473,10 @@ class ResourceTracker(object):
         else:
             LOG.debug("Hypervisor: VCPU information unavailable")
 
-        if 'pci_passthrough_devices' in resources and \
-                resources['pci_passthrough_devices']:
+        if ('pci_devices' in resources and
+            len(resources['pci_devices']) > 0):
             LOG.debug("Hypervisor: assignable PCI devices: %s" %
-                resources['pci_passthrough_devices'])
+                      [dev._to_dict() for dev in resources['pci_devices']])
         else:
             LOG.debug("Hypervisor: no assignable PCI devices")
 

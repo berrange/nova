@@ -2053,7 +2053,7 @@ class XenAPIHostTestCase(stubs.XenAPITestBase):
 
     def test_pci_passthrough_devices(self):
         stats = self.conn.host_state.get_host_stats(False)
-        self.assertEqual(len(stats['pci_passthrough_devices']), 2)
+        self.assertEqual(len(stats['pci_devices']), 2)
 
     def _test_host_action(self, method, action, expected=None):
         result = method('host', action)

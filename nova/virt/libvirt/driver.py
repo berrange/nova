@@ -4703,62 +4703,73 @@ class LibvirtDriver(driver.ComputeDriver):
             Please notice that a PCI device with SR-IOV
             capability but not enabled is reported as normal PCI device.
             """
-            for fun_cap in cfgdev.pci_capability.fun_capability:
-                if len(fun_cap.device_addrs) != 0:
-                    if fun_cap.type == 'virt_functions':
-                        return {'dev_type': 'type-PF'}
-                    if fun_cap.type == 'phys_function':
-                        phys_address = "%04x:%02x:%02x.%01x" % (
-                            fun_cap.device_addrs[0][0],
-                            fun_cap.device_addrs[0][1],
-                            fun_cap.device_addrs[0][2],
-                            fun_cap.device_addrs[0][3])
-                        return {'dev_type': 'type-VF',
-                                'phys_function': phys_address}
-            return {'dev_type': 'type-PCI'}
 
         virtdev = self._conn.nodeDeviceLookupByName(devname)
         xmlstr = virtdev.XMLDesc(0)
         cfgdev = vconfig.LibvirtConfigNodeDevice()
         cfgdev.parse_str(xmlstr)
 
-        address = "%04x:%02x:%02x.%1x" % (
+        address = hardware.VirtPCIAddressInfo(
             cfgdev.pci_capability.domain,
             cfgdev.pci_capability.bus,
             cfgdev.pci_capability.slot,
             cfgdev.pci_capability.function)
 
-        device = {
-            "dev_id": cfgdev.name,
-            "address": address,
-            "product_id": cfgdev.pci_capability.product_id[2:6],
-            "vendor_id": cfgdev.pci_capability.vendor_id[2:6],
-            }
+        product = cfgdev.pci_capability.product_id[2:6]
+        vendor = cfgdev.pci_capability.vendor_id[2:6]
 
-        # requirement by DataBase Model
-        device['label'] = 'label_%(vendor_id)s_%(product_id)s' % device
-        device.update(_get_device_type(cfgdev))
-        return device
+        label = 'label_%(vendor_id)s_%(product_id)s' % {
+            'vendor_id': vendor, 'product_id': product
+        }
 
-    def _get_pci_passthrough_devices(self):
+        for fun_cap in cfgdev.pci_capability.fun_capability:
+            if len(fun_cap.device_addrs) != 0:
+                if fun_cap.type == 'virt_functions':
+                    return hardware.VirtPCIDeviceInfo(
+                        hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC,
+                        cfgdev.name,
+                        label,
+                        product,
+                        vendor,
+                        address)
+
+                if fun_cap.type == 'phys_function':
+                    parent = hardware.VirtPCIAddressInfo(
+                        fun_cap.device_addrs[0][0],
+                        fun_cap.device_addrs[0][1],
+                        fun_cap.device_addrs[0][2],
+                        fun_cap.device_addrs[0][3])
+
+                    return hardware.VirtPCIDeviceInfo(
+                        hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                        cfgdev.name,
+                        label,
+                        product,
+                        vendor,
+                        address,
+                        parent)
+
+        return hardware.VirtPCIDeviceInfo(
+                        hardware.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+                        cfgdev.name,
+                        label,
+                        product,
+                        vendor,
+                        address)
+
+    def _get_pci_device_info(self):
         """Get host PCI devices information.
 
         Obtains pci devices information from libvirt, and returns
-        as a JSON string.
+        a list of device information objects
 
-        Each device information is a dictionary, with mandatory keys
-        of 'address', 'vendor_id', 'product_id', 'dev_type', 'dev_id',
-        'label' and other optional device specific information.
-
-        Refer to the objects/pci_device.py for more idea of these keys.
-
-        :returns: a JSON string containaing a list of the assignable PCI
-                  devices information
+        :returns: a list of nova.virt.hardware.VirtPCIDeviceInfo
         """
+
         # Bail early if we know we can't support `listDevices` to avoid
         # repeated warnings within a periodic task
         if not getattr(self, '_list_devices_supported', True):
-            return jsonutils.dumps([])
+            return []
 
         try:
             dev_names = self._conn.listDevices('pci', 0) or []
@@ -4769,15 +4780,15 @@ class LibvirtDriver(driver.ComputeDriver):
                 LOG.warn(_LW("URI %(uri)s does not support "
                              "listDevices: " "%(error)s"),
                              {'uri': self.uri(), 'error': ex})
-                return jsonutils.dumps([])
+                return []
             else:
                 raise
 
-        pci_info = []
+        devs = []
         for name in dev_names:
-            pci_info.append(self._get_pcidev_info(name))
+            devs.append(self._get_pcidev_info(name))
 
-        return jsonutils.dumps(pci_info)
+        return devs
 
     def _get_host_numa_topology(self):
         caps = self._get_host_capabilities()
@@ -4915,8 +4926,7 @@ class LibvirtDriver(driver.ComputeDriver):
         available_least = disk_free_gb * units.Gi - disk_over_committed
         data['disk_available_least'] = available_least / units.Gi
 
-        data['pci_passthrough_devices'] = \
-            self._get_pci_passthrough_devices()
+        data['pci_devices'] = self._get_pci_device_info()
 
         numa_topology = self._get_host_numa_topology()
         if numa_topology:

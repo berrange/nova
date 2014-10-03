@@ -7971,29 +7971,27 @@ class LibvirtConnTestCase(test.TestCase):
                                              fake_nodeDeviceLookupByName
 
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
+
         actualvf = conn._get_pcidev_info("pci_0000_04_00_3")
-        expect_vf = {
-            "dev_id": "pci_0000_04_00_3",
-            "address": "0000:04:00.3",
-            "product_id": '1521',
-            "vendor_id": '8086',
-            "label": 'label_8086_1521',
-            "dev_type": 'type-PF',
-            }
+        expect_vf = hardware.VirtPCIDeviceInfo(
+            hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC,
+            "pci_0000_04_00_3",
+            'label_8086_1521',
+            '1521',
+            '8086',
+            hardware.VirtPCIAddressInfo(0, 4, 0, 3))
+        self.assertEqual(expect_vf._to_dict(), actualvf._to_dict())
 
-        self.assertEqual(actualvf, expect_vf)
         actualvf = conn._get_pcidev_info("pci_0000_04_10_7")
-        expect_vf = {
-            "dev_id": "pci_0000_04_10_7",
-            "address": "0000:04:10.7",
-            "product_id": '1520',
-            "vendor_id": '8086',
-            "label": 'label_8086_1520',
-            "dev_type": 'type-VF',
-            "phys_function": '0000:04:00.3',
-            }
-
-        self.assertEqual(actualvf, expect_vf)
+        expect_vf = hardware.VirtPCIDeviceInfo(
+            hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+            "pci_0000_04_10_7",
+            'label_8086_1520',
+            '1520',
+            '8086',
+            hardware.VirtPCIAddressInfo(0, 4, 16, 7),
+            hardware.VirtPCIAddressInfo(0, 4, 0, 3))
+        self.assertEqual(expect_vf._to_dict(), actualvf._to_dict())
 
     def test_list_devices_not_supported(self):
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
@@ -8007,7 +8005,7 @@ class LibvirtConnTestCase(test.TestCase):
 
         with mock.patch.object(conn._conn, 'listDevices',
                                side_effect=not_supported_exc):
-            self.assertEqual('[]', conn._get_pci_passthrough_devices())
+            self.assertEqual([], conn._get_pci_device_info())
 
         # We cache not supported status to avoid emitting too many logging
         # messages. Clear this value to test the other exception case.
@@ -8022,7 +8020,7 @@ class LibvirtConnTestCase(test.TestCase):
         with mock.patch.object(conn._conn, 'listDevices',
                                side_effect=other_exc):
             self.assertRaises(libvirt.libvirtError,
-                              conn._get_pci_passthrough_devices)
+                              conn._get_pci_device_info)
 
     def test_get_pci_passthrough_devices(self):
 
@@ -8038,34 +8036,30 @@ class LibvirtConnTestCase(test.TestCase):
         libvirt_driver.LibvirtDriver._conn.nodeDeviceLookupByName =\
                                              fake_nodeDeviceLookupByName
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
-        actjson = conn._get_pci_passthrough_devices()
+        actualvfs = conn._get_pci_device_info()
 
         expectvfs = [
-            {
-                "dev_id": "pci_0000_04_00_3",
-                "address": "0000:04:00.3",
-                "product_id": '1521',
-                "vendor_id": '8086',
-                "dev_type": 'type-PF',
-                "phys_function": None},
-            {
-                "dev_id": "pci_0000_04_10_7",
-                "domain": 0,
-                "address": "0000:04:10.7",
-                "product_id": '1520',
-                "vendor_id": '8086',
-                "dev_type": 'type-VF',
-                "phys_function": [('0x0000', '0x04', '0x00', '0x3')],
-            }
+            hardware.VirtPCIDeviceInfo(
+                hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC,
+                "pci_0000_04_00_3",
+                'label_8086_1521',
+                '1521',
+                '8086',
+                hardware.VirtPCIAddressInfo(0, 4, 0, 3)),
+            hardware.VirtPCIDeviceInfo(
+                hardware.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                "pci_0000_04_10_7",
+                'label_8086_1520',
+                '1520',
+                '8086',
+                hardware.VirtPCIAddressInfo(0, 4, 16, 7),
+                hardware.VirtPCIAddressInfo(0, 4, 0, 3))
         ]
 
-        actualvfs = jsonutils.loads(actjson)
-        print jsonutils.dumps(actualvfs)
-        print jsonutils.dumps(expectvfs)
-        for dev in range(len(actualvfs)):
-            for key in actualvfs[dev].keys():
-                if key not in ['phys_function', 'virt_functions', 'label']:
-                    self.assertEqual(actualvfs[dev][key], expectvfs[dev][key])
+        self.assertEqual(len(expectvfs), len(actualvfs))
+        for i in range(len(actualvfs)):
+            self.assertEqual(expectvfs[i]._to_dict(),
+                             actualvfs[i]._to_dict())
 
     def _fake_caps_numa_topology(self):
         topology = vconfig.LibvirtConfigCapsNUMATopology()
@@ -10110,13 +10104,14 @@ class HostStateTestCase(test.NoDBTestCase):
                  '"topology": {"cores": "1", "threads": "1", "sockets": "1"}}')
     instance_caps = [(arch.X86_64, "kvm", "hvm"),
                      (arch.I686, "kvm", "hvm")]
-    pci_devices = [{
-        "dev_id": "pci_0000_04_00_3",
-        "address": "0000:04:10.3",
-        "product_id": '1521',
-        "vendor_id": '8086',
-        "dev_type": 'type-PF',
-        "phys_function": None}]
+    pci_devices = [
+        hardware.VirtPCIDeviceInfo(
+            dev_type=hardware.VirtPCIDeviceInfo.DEV_TYPE_PHYS_FUNC,
+            dev_id="pci_0000_04_00_3",
+            label="label_8086_1521",
+            address=hardware.VirtPCIAddressInfo(0, 4, 16, 3),
+            product_id='1521',
+            vendor_id='8086')]
     numa_topology = hardware.VirtNUMAHostTopology(
                         cells=[hardware.VirtNUMATopologyCellUsage(
                                 1, set([1, 2]), 1024),
@@ -10169,8 +10164,8 @@ class HostStateTestCase(test.NoDBTestCase):
         def _get_instance_capabilities(self):
             return HostStateTestCase.instance_caps
 
-        def _get_pci_passthrough_devices(self):
-            return jsonutils.dumps(HostStateTestCase.pci_devices)
+        def _get_pci_device_info(self):
+            return HostStateTestCase.pci_devices
 
         def _get_host_numa_topology(self):
             return HostStateTestCase.numa_topology
@@ -10197,8 +10192,11 @@ class HostStateTestCase(test.NoDBTestCase):
                  "topology": {"cores": "1", "threads": "1", "sockets": "1"}
                 })
         self.assertEqual(stats["disk_available_least"], 80)
-        self.assertEqual(jsonutils.loads(stats["pci_passthrough_devices"]),
-                         HostStateTestCase.pci_devices)
+        self.assertEqual(len(HostStateTestCase.pci_devices),
+                         len(stats["pci_devices"]))
+        for i in range(len(HostStateTestCase.pci_devices)):
+            self.assertEqual(HostStateTestCase.pci_devices[i]._to_dict(),
+                             stats["pci_devices"][i]._to_dict())
         self.assertThat(hardware.VirtNUMAHostTopology.from_json(
                             stats['numa_topology'])._to_dict(),
                         matchers.DictMatches(

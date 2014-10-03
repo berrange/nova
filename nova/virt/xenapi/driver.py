@@ -464,8 +464,7 @@ class XenAPIDriver(driver.ComputeDriver):
                'disk_available_least': total_disk_gb - allocated_disk_gb,
                'supported_instances': jsonutils.dumps(
                    host_stats['supported_instances']),
-               'pci_passthrough_devices': jsonutils.dumps(
-                   host_stats['pci_passthrough_devices']),
+               'pci_devices': host_stats['pci_devices'],
                'numa_topology': None}
 
         return dic

@@ -1091,6 +1091,87 @@ class VirtNUMAHostTopology(VirtNUMATopology):
                           "the given host NUMA topology limits."))
 
 
+class VirtPCIAddressInfo(object):
+
+    def __init__(self, domain, bus, slot, function):
+        """Create new PCI device address information record
+
+        :param domain: the PCI domain component
+        :param bus: the PCI bus component
+        :param slot: the PCI slot component
+        :param function: the PCI function component
+        """
+
+        self.domain = domain
+        self.bus = bus
+        self.slot = slot
+        self.function = function
+
+    def _to_str(self):
+        return "%04x:%02x:%02x.%1x" % (
+            self.domain, self.bus, self.slot, self.function)
+
+    @classmethod
+    def _from_str(cls, data):
+        bits1 = data.split(":")
+        bits2 = bits1[2].split(".")
+        return cls(
+            bits1[0], bits1[1], bits2[0], bits2[1])
+
+
+class VirtPCIDeviceInfo(object):
+
+    DEV_TYPE_REGULAR = "type-PCI"
+    DEV_TYPE_PHYS_FUNC = "type-PF"
+    DEV_TYPE_VIRT_FUNC = "type-VF"
+
+    def __init__(self, dev_type, dev_id, label,
+                 product_id, vendor_id,
+                 address, phys_function=None):
+        """Create new PCI device information record
+
+        :param dev_type: type of device - DEV_TYPE constants
+        :param dev_id: unique string identifier for device
+        :param label: descriptive label of the device
+        :param product_id: integer ID of the product
+        :param vendor_id: integer ID of the vendor
+        :param address: instance of VirtPCIAddressInfo
+        :param phys_function: instance of VirtPCIAddressInfo
+        """
+
+        self.dev_type = dev_type
+        self.dev_id = dev_id
+        self.label = label
+        self.product_id = product_id
+        self.vendor_id = vendor_id
+        self.address = address
+        self.phys_function = phys_function
+
+    def _to_dict(self):
+        data = {
+            "dev_type": self.dev_type,
+            "dev_id": self.dev_id,
+            "label": self.label,
+            "product_id": self.product_id,
+            "vendor_id": self.vendor_id,
+            "address": self.address._to_str(),
+        }
+        if self.phys_function is not None:
+            data["phys_function"] = self.phys_function._to_str()
+        return data
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(
+            data["dev_type"],
+            data["dev_id"],
+            data["label"],
+            data["product_id"],
+            data["vendor_id"],
+            VirtPCIAddressInfo._from_str(data["address"]),
+            VirtPCIAddressInfo._from_str(data.get("phys_function")))
+
+
 # TODO(ndipanov): Remove when all code paths are using objects
 def instance_topology_from_instance(instance):
     """Convenience method for getting the numa_topology out of instances

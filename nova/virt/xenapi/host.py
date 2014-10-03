@@ -291,10 +291,10 @@ def to_supported_instances(host_capabilities):
 
             ostype, _version, guestarch = capability.split("-")
 
-            guestarch = arch.canonicalize(guestarch)
-            ostype = vm_mode.canonicalize(ostype)
-
-            result.append((guestarch, hvtype.XEN, ostype))
+            result.append(
+                hardware.VirtInstanceInfo(guestarch,
+                                          hvtype.XEN,
+                                          ostype))
         except ValueError:
             LOG.warning(
                 _("Failed to extract instance support from %s"), capability)

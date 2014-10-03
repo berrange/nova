@@ -759,19 +759,6 @@ class FakeConnectionTestCase(_VirtDriverTestCase, test.TestCase):
         fake.set_nodes(['myhostname'])
         super(FakeConnectionTestCase, self).setUp()
 
-    def _check_available_resource_fields(self, host_status):
-        super(FakeConnectionTestCase, self)._check_available_resource_fields(
-            host_status)
-
-        hypervisor_type = host_status['hypervisor_type']
-        supported_instances = host_status['supported_instances']
-        try:
-            # supported_instances could be JSON wrapped
-            supported_instances = jsonutils.loads(supported_instances)
-        except TypeError:
-            pass
-        self.assertTrue(any(hypervisor_type in x for x in supported_instances))
-
 
 class LibvirtConnTestCase(_VirtDriverTestCase, test.TestCase):
     def setUp(self):

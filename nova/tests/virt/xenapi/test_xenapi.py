@@ -34,6 +34,7 @@ from nova.compute import power_state
 from nova.compute import task_states
 from nova.compute import utils as compute_utils
 from nova.compute import vm_states
+from nova.compute import vm_mode
 from nova.conductor import api as conductor_api
 from nova import context
 from nova import crypto
@@ -54,6 +55,7 @@ from nova.tests import matchers
 from nova.tests.objects import test_aggregate
 from nova.tests.virt.xenapi import stubs
 from nova.virt import fake
+from nova.virt import hardware
 from nova.virt.xenapi import agent
 from nova.virt.xenapi.client import session as xenapi_session
 from nova.virt.xenapi import driver as xenapi_conn
@@ -2153,21 +2155,28 @@ class ToSupportedInstancesTestCase(test.NoDBTestCase):
             host.to_supported_instances(None))
 
     def test_return_value(self):
-        self.assertEqual([(arch.X86_64, hvtype.XEN, 'xen')],
-             host.to_supported_instances([u'xen-3.0-x86_64']))
+        expect = [hardware.VirtInstanceInfo(arch.X86_64, hvtype.XEN, vm_mode.XEN)]
+        actual = host.to_supported_instances([u'xen-3.0-x86_64'])
+        self.assertEqual(len(expect), len(actual))
+        for i in range(len(expect)):
+            self.assertEqual(expect[i]._to_dict(), actual[i]._to_dict())
 
     def test_invalid_values_do_not_break(self):
-        self.assertEqual([(arch.X86_64, hvtype.XEN, 'xen')],
-             host.to_supported_instances([u'xen-3.0-x86_64', 'spam']))
+        expect = [hardware.VirtInstanceInfo(arch.X86_64, hvtype.XEN, vm_mode.XEN)]
+        actual = host.to_supported_instances([u'xen-3.0-x86_64', 'spam'])
+        self.assertEqual(len(expect), len(actual))
+        for i in range(len(expect)):
+            self.assertEqual(expect[i]._to_dict(), actual[i]._to_dict())
 
     def test_multiple_values(self):
-        self.assertEqual(
-            [
-                (arch.X86_64, hvtype.XEN, 'xen'),
-                (arch.I686, hvtype.XEN, 'hvm')
-            ],
-            host.to_supported_instances([u'xen-3.0-x86_64', 'hvm-3.0-x86_32'])
-        )
+        expect = [
+            hardware.VirtInstanceInfo(arch.X86_64, hvtype.XEN, vm_mode.XEN),
+            hardware.VirtInstanceInfo(arch.I686, hvtype.XEN, vm_mode.HVM)
+        ]
+        actual = host.to_supported_instances([u'xen-3.0-x86_64', u'hvm-3.0-x86_32'])
+        self.assertEqual(len(expect), len(actual))
+        for i in range(len(expect)):
+            self.assertEqual(expect[i]._to_dict(), actual[i]._to_dict())
 
 
 # FIXME(sirp): convert this to use XenAPITestBaseNoDB

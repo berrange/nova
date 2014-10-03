@@ -22,7 +22,6 @@ A driver for Bare-metal platform.
 
 from oslo.config import cfg
 
-from nova.compute import arch
 from nova.compute import flavors
 from nova.compute import hvtype
 from nova.compute import power_state
@@ -41,6 +40,7 @@ from nova.virt.baremetal import baremetal_states
 from nova.virt.baremetal import db
 from nova.virt import driver
 from nova.virt import firewall
+from nova.virt import hardware
 from nova.virt.libvirt import imagecache
 
 LOG = logging.getLogger(__name__)
@@ -147,11 +147,12 @@ class BareMetalDriver(driver.ComputeDriver):
                 _('cpu_arch is not found in flavor_extra_specs'))
             self.supported_instances = []
         else:
-            self.supported_instances = [(
-                arch.canonicalize(extra_specs['cpu_arch']),
-                hvtype.BAREMETAL,
-                vm_mode.HVM
-            ), ]
+            self.supported_instances = [
+                hardware.VirtInstanceInfo(
+                    extra_specs['cpu_arch'],
+                    hvtype.BAREMETAL,
+                    vm_mode.HVM),
+            ]
 
     @classmethod
     def instance(cls):
@@ -506,8 +507,7 @@ class BareMetalDriver(driver.ComputeDriver):
                'hypervisor_version': self.get_hypervisor_version(),
                'hypervisor_hostname': str(node['uuid']),
                'cpu_info': 'baremetal cpu',
-               'supported_instances':
-                        jsonutils.dumps(self.supported_instances),
+               'supported_instances': self.supported_instances,
                'stats': jsonutils.dumps(self.extra_specs)
                }
         return dic

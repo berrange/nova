@@ -34,8 +34,11 @@ import suds
 
 from nova import block_device
 from nova.compute import api as compute_api
+from nova.compute import arch
+from nova.compute import hvtype
 from nova.compute import power_state
 from nova.compute import task_states
+from nova.compute import vm_mode
 from nova.compute import vm_states
 from nova import context
 from nova import exception
@@ -55,6 +58,7 @@ from nova.tests.virt.vmwareapi import fake as vmwareapi_fake
 from nova.tests.virt.vmwareapi import stubs
 from nova import utils as nova_utils
 from nova.virt import driver as v_driver
+from nova.virt import hardware
 from nova.virt.vmwareapi import constants
 from nova.virt.vmwareapi import driver
 from nova.virt.vmwareapi import ds_util
@@ -2099,8 +2103,19 @@ class VMwareAPIVCDriverTestCase(VMwareAPIVMTestCase):
         self.assertEqual(stats['hypervisor_version'], 5001000)
         self.assertEqual(stats['hypervisor_hostname'], self.node_name)
         self.assertEqual(stats['cpu_info'], jsonutils.dumps(cpu_info))
-        self.assertEqual(stats['supported_instances'],
-                '[["i686", "vmware", "hvm"], ["x86_64", "vmware", "hvm"]]')
+
+        wantinst = [
+            hardware.VirtInstanceInfo(arch.I686,
+                                      hvtype.VMWARE,
+                                      vm_mode.HVM),
+            hardware.VirtInstanceInfo(arch.X86_64,
+                                      hvtype.VMWARE,
+                                      vm_mode.HVM),
+        ]
+        self.assertEqual(len(wantinst), len(stats['supported_instances']))
+        for i in range(len(wantinst)):
+            self.assertEqual(wantinst[i]._to_dict(),
+                             stats['supported_instances'][i]._to_dict())
 
     def test_invalid_datastore_regex(self):
 

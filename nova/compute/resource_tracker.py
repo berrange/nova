@@ -381,6 +381,12 @@ class ResourceTracker(object):
         else:
             resources['pci_stats'] = jsonutils.dumps([])
 
+        # Temporary convert supported_instances into a string, while keeping
+        # the RPC version as JSON. Can be changed when RPC broadcast is removed
+        instances = [(inst.arch, inst.hvtype, inst.mode) for
+                     inst in resources["supported_instances"]]
+        resources["supported_instances"] = jsonutils.dumps(instances)
+
         self._report_final_resource_view(resources)
 
         metrics = self._get_host_metrics(context, self.nodename)

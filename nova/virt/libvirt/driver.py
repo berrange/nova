@@ -55,7 +55,6 @@ from nova.api.metadata import base as instance_metadata
 from nova import block_device
 from nova.compute import arch
 from nova.compute import flavors
-from nova.compute import hvtype
 from nova.compute import power_state
 from nova.compute import task_states
 from nova.compute import utils as compute_utils
@@ -4629,26 +4628,23 @@ class LibvirtDriver(driver.ComputeDriver):
                            'new': hostname})
         return self._hypervisor_hostname
 
-    def _get_instance_capabilities(self):
+    def _get_supported_instances(self):
         """Get hypervisor instance capabilities
 
-        Returns a list of tuples that describe instances the
-        hypervisor is capable of hosting.  Each tuple consists
-        of the triplet (arch, hypervisor_type, vm_mode).
+        Returns a list of nova.virt.hardware.VirtInstanceInfo
+        objects describing the instances the hypervisor is
+        capable of hosting.
 
-        :returns: List of tuples describing instance capabilities
+        :returns: list of nova.virt.hardware.VirtInstanceInfo
         """
         caps = self._get_host_capabilities()
-        instance_caps = list()
+        insts = []
         for g in caps.guests:
             for dt in g.domtype:
-                instance_cap = (
-                    arch.canonicalize(g.arch),
-                    hvtype.canonicalize(dt),
-                    vm_mode.canonicalize(g.ostype))
-                instance_caps.append(instance_cap)
+                insts.append(hardware.VirtInstanceInfo(
+                    g.arch, dt, g.ostype))
 
-        return instance_caps
+        return insts
 
     def _get_cpu_info(self):
         """Get cpuinfo information.
@@ -4899,10 +4895,7 @@ class LibvirtDriver(driver.ComputeDriver):
         # See: https://bugzilla.redhat.com/show_bug.cgi?id=1000116
         # See: https://bugs.launchpad.net/nova/+bug/1215593
 
-        # Temporary convert supported_instances into a string, while keeping
-        # the RPC version as JSON. Can be changed when RPC broadcast is removed
-        data["supported_instances"] = jsonutils.dumps(
-            self._get_instance_capabilities())
+        data["supported_instances"] = self._get_supported_instances()
 
         data["vcpus"] = self._get_vcpu_total()
         data["memory_mb"] = self._get_memory_mb_total()

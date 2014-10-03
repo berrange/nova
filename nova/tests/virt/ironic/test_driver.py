@@ -19,8 +19,11 @@ from ironicclient import exc as ironic_exception
 import mock
 from oslo.config import cfg
 
+from nova.compute import arch
+from nova.compute import hvtype
 from nova.compute import power_state as nova_states
 from nova.compute import task_states
+from nova.compute import vm_mode
 from nova import context as nova_context
 from nova import exception
 from nova import objects
@@ -34,6 +37,7 @@ from nova.tests.virt.ironic import utils as ironic_utils
 from nova.virt import driver
 from nova.virt import fake
 from nova.virt import firewall
+from nova.virt import hardware
 from nova.virt.ironic import client_wrapper as cw
 from nova.virt.ironic import driver as ironic_driver
 from nova.virt.ironic import ironic_states
@@ -214,8 +218,11 @@ class IronicDriverTestCase(test.NoDBTestCase):
         node = ironic_utils.get_test_node(uuid=node_uuid, properties=props)
 
         result = self.driver._node_resource(node)
-        self.assertEqual('i686',
-                         jsonutils.loads(result['supported_instances'])[0][0])
+        self.assertEqual(1, len(result['supported_instances']))
+        self.assertEqual(hardware.VirtInstanceInfo(arch.I686,
+                                                   hvtype.BAREMETAL,
+                                                   vm_mode.HVM)._to_dict(),
+                         result['supported_instances'][0]._to_dict())
         self.assertEqual('i386',
                          jsonutils.loads(result['stats'])['cpu_arch'])
 
@@ -226,7 +233,7 @@ class IronicDriverTestCase(test.NoDBTestCase):
         node = ironic_utils.get_test_node(uuid=node_uuid, properties=props)
 
         result = self.driver._node_resource(node)
-        self.assertEqual([], jsonutils.loads(result['supported_instances']))
+        self.assertEqual([], result['supported_instances'])
 
     def test__node_resource_exposes_capabilities(self):
         props = _get_properties()

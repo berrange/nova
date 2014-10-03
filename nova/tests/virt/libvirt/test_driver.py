@@ -38,6 +38,7 @@ import six
 from nova.api.metadata import base as instance_metadata
 from nova.compute import arch
 from nova.compute import flavors
+from nova.compute import hvtype
 from nova.compute import manager
 from nova.compute import power_state
 from nova.compute import task_states
@@ -8876,11 +8877,22 @@ Active:          8381604 kB
                        '_get_host_capabilities',
                        get_host_capabilities_stub)
 
-        want = [(arch.X86_64, 'kvm', 'hvm'),
-                (arch.X86_64, 'qemu', 'hvm'),
-                (arch.I686, 'kvm', 'hvm')]
-        got = conn._get_instance_capabilities()
-        self.assertEqual(want, got)
+        want = [
+            hardware.VirtInstanceInfo(arch.X86_64,
+                                      hvtype.KVM,
+                                      vm_mode.HVM),
+            hardware.VirtInstanceInfo(arch.X86_64,
+                                      hvtype.QEMU,
+                                      vm_mode.HVM),
+            hardware.VirtInstanceInfo(arch.I686,
+                                      hvtype.KVM,
+                                      vm_mode.HVM)
+        ]
+        got = conn._get_supported_instances()
+        self.assertEqual(len(want), len(got))
+        for i in range(len(want)):
+            self.assertEqual(want[i]._to_dict(),
+                             got[i]._to_dict())
 
     def test_event_dispatch(self):
         # Validate that the libvirt self-pipe for forwarding
@@ -10121,8 +10133,14 @@ class HostStateTestCase(test.NoDBTestCase):
                  '"fxsr", "clflush", "pse36", "pat", "cmov", "mca", "pge", '
                  '"mtrr", "sep", "apic"], '
                  '"topology": {"cores": "1", "threads": "1", "sockets": "1"}}')
-    instance_caps = [(arch.X86_64, "kvm", "hvm"),
-                     (arch.I686, "kvm", "hvm")]
+    supported_instances = [
+        hardware.VirtInstanceInfo(arch.X86_64,
+                                  hvtype.KVM,
+                                  vm_mode.HVM),
+        hardware.VirtInstanceInfo(arch.I686,
+                                  hvtype.KVM,
+                                  vm_mode.HVM)
+    ]
     pci_devices = [{
         "dev_id": "pci_0000_04_00_3",
         "address": "0000:04:10.3",
@@ -10179,8 +10197,8 @@ class HostStateTestCase(test.NoDBTestCase):
         def _get_disk_available_least(self):
             return 13091
 
-        def _get_instance_capabilities(self):
-            return HostStateTestCase.instance_caps
+        def _get_supported_instances(self):
+            return HostStateTestCase.supported_instances
 
         def _get_pci_passthrough_devices(self):
             return jsonutils.dumps(HostStateTestCase.pci_devices)
@@ -10212,6 +10230,12 @@ class HostStateTestCase(test.NoDBTestCase):
         self.assertEqual(stats["disk_available_least"], 80)
         self.assertEqual(jsonutils.loads(stats["pci_passthrough_devices"]),
                          HostStateTestCase.pci_devices)
+        self.assertEqual(len(HostStateTestCase.supported_instances),
+                         len(stats["supported_instances"]))
+        for i in range(len(HostStateTestCase.supported_instances)):
+            self.assertEqual(
+                HostStateTestCase.supported_instances[i]._to_dict(),
+                stats["supported_instances"][i]._to_dict())
         self.assertThat(hardware.VirtNUMAHostTopology.from_json(
                             stats['numa_topology'])._to_dict(),
                         matchers.DictMatches(

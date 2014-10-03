@@ -21,10 +21,8 @@ import re
 
 from oslo.config import cfg
 
-from nova.compute import arch
 from nova.compute import hvtype
 from nova.compute import task_states
-from nova.compute import vm_mode
 from nova.compute import vm_states
 from nova import context
 from nova import exception
@@ -32,6 +30,7 @@ from nova.i18n import _
 from nova import objects
 from nova.openstack.common import jsonutils
 from nova.openstack.common import log as logging
+from nova.virt import hardware
 from nova.virt.xenapi import pool_states
 from nova.virt.xenapi import vm_utils
 
@@ -280,10 +279,10 @@ def to_supported_instances(host_capabilities):
 
             ostype, _version, guestarch = capability.split("-")
 
-            guestarch = arch.canonicalize(guestarch)
-            ostype = vm_mode.canonicalize(ostype)
-
-            result.append((guestarch, hvtype.XEN, ostype))
+            result.append(
+                hardware.VirtInstanceInfo(guestarch,
+                                          hvtype.XEN,
+                                          ostype))
         except ValueError:
             LOG.warning(
                 _("Failed to extract instance support from %s"), capability)

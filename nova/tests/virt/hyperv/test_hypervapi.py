@@ -30,8 +30,11 @@ import mox
 from oslo.config import cfg
 
 from nova.api.metadata import base as instance_metadata
+from nova.compute import arch
+from nova.compute import hvtype
 from nova.compute import power_state
 from nova.compute import task_states
+from nova.compute import vm_mode
 from nova import context
 from nova import db
 from nova import exception
@@ -48,6 +51,7 @@ from nova.tests.virt.hyperv import fake
 from nova import utils
 from nova.virt import configdrive
 from nova.virt import driver
+from nova.virt import hardware
 from nova.virt.hyperv import basevolumeutils
 from nova.virt.hyperv import constants
 from nova.virt.hyperv import driver as driver_hyperv
@@ -313,8 +317,20 @@ class HyperVAPITestCase(HyperVAPIBaseTestCase):
                          tot_hdd_b / units.Gi - free_hdd_b / units.Gi)
         self.assertEqual(dic['hypervisor_version'],
                          windows_version.replace('.', ''))
-        self.assertEqual(dic['supported_instances'],
-                '[["i686", "hyperv", "hvm"], ["x86_64", "hyperv", "hvm"]]')
+
+        want_inst = [
+            hardware.VirtInstanceInfo(arch.I686,
+                                      hvtype.HYPERV,
+                                      vm_mode.HVM),
+            hardware.VirtInstanceInfo(arch.X86_64,
+                                      hvtype.HYPERV,
+                                      vm_mode.HVM),
+        ]
+        self.assertEqual(len(want_inst),
+                         len(dic['supported_instances']))
+        for i in range(len(want_inst)):
+            self.assertEqual(want_inst[i]._to_dict(),
+                             dic['supported_instances'][i]._to_dict())
 
     def test_list_instances(self):
         fake_instances = ['fake1', 'fake2']

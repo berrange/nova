@@ -383,8 +383,7 @@ class VMwareVCDriver(driver.ComputeDriver):
                'hypervisor_version': host_stats['hypervisor_version'],
                'hypervisor_hostname': host_stats['hypervisor_hostname'],
                'cpu_info': jsonutils.dumps(host_stats['cpu_info']),
-               'supported_instances': jsonutils.dumps(
-                   host_stats['supported_instances']),
+               'supported_instances': host_stats['supported_instances'],
                'numa_topology': None,
                }
 

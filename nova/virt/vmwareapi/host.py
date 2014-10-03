@@ -23,6 +23,7 @@ from nova.compute import vm_mode
 from nova import exception
 from nova.openstack.common import units
 from nova import utils
+from nova.virt import hardware
 from nova.virt.vmwareapi import ds_util
 from nova.virt.vmwareapi import vim_util
 from nova.virt.vmwareapi import vm_util
@@ -80,8 +81,12 @@ class VCState(object):
                 str(about_info.version))
         data["hypervisor_hostname"] = self._host_name
         data["supported_instances"] = [
-            (arch.I686, hvtype.VMWARE, vm_mode.HVM),
-            (arch.X86_64, hvtype.VMWARE, vm_mode.HVM)]
+            hardware.VirtInstanceInfo(arch.I686,
+                                      hvtype.VMWARE,
+                                      vm_mode.HVM),
+            hardware.VirtInstanceInfo(arch.X86_64,
+                                      hvtype.VMWARE,
+                                      vm_mode.HVM)]
 
         self._stats = data
         return data

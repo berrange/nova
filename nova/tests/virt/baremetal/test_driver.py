@@ -23,9 +23,12 @@ import mock
 import mox
 from oslo.config import cfg
 
+from nova.compute import arch
 from nova.compute import flavors
+from nova.compute import hvtype
 from nova.compute import power_state
 from nova.compute import task_states
+from nova.compute import vm_mode
 from nova import db as main_db
 from nova import exception
 from nova import objects
@@ -40,6 +43,7 @@ from nova.virt.baremetal import db
 from nova.virt.baremetal import driver as bm_driver
 from nova.virt.baremetal import fake
 from nova.virt import fake as fake_virt
+from nova.virt import hardware
 
 
 CONF = cfg.CONF
@@ -381,8 +385,12 @@ class BareMetalDriverWithDBTestCase(bm_db_base.BMDBTestCase):
         self.assertEqual(resources['memory_mb'],
                          node['node_info']['memory_mb'])
         self.assertEqual(resources['memory_mb_used'], 0)
-        self.assertEqual(resources['supported_instances'],
-                '[["x86_64", "baremetal", "hvm"]]')
+        self.assertEqual(1, len(resources['supported_instances']))
+        self.assertEqual(hardware.VirtInstanceInfo(
+            arch.X86_64,
+            hvtype.BAREMETAL,
+            vm_mode.HVM)._to_dict(),
+            resources['supported_instances'][0]._to_dict())
         self.assertEqual(resources['stats'],
                          '{"cpu_arch": "x86_64", "baremetal_driver": '
                          '"nova.virt.baremetal.fake.FakeDriver", '

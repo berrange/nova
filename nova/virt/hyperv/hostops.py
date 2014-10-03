@@ -29,6 +29,7 @@ from nova.compute import vm_mode
 from nova.openstack.common import jsonutils
 from nova.openstack.common import log as logging
 from nova.openstack.common import units
+from nova.virt import hardware
 from nova.virt.hyperv import constants
 from nova.virt.hyperv import utilsfactory
 
@@ -130,9 +131,14 @@ class HostOps(object):
                'hypervisor_hostname': platform.node(),
                'vcpus_used': 0,
                'cpu_info': jsonutils.dumps(cpu_info),
-               'supported_instances': jsonutils.dumps(
-                   [(arch.I686, hvtype.HYPERV, vm_mode.HVM),
-                    (arch.X86_64, hvtype.HYPERV, vm_mode.HVM)]),
+               'supported_instances': [
+                   hardware.VirtInstanceInfo(arch.I686,
+                                             hvtype.HYPERV,
+                                             vm_mode.HVM),
+                   hardware.VirtInstanceInfo(arch.X86_64,
+                                             hvtype.HYPERV,
+                                             vm_mode.HVM)
+               ],
                'numa_topology': None,
                }
 

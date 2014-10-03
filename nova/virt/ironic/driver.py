@@ -44,6 +44,7 @@ from nova.openstack.common import log as logging
 from nova.openstack.common import loopingcall
 from nova.virt import driver as virt_driver
 from nova.virt import firewall
+from nova.virt import hardware
 from nova.virt.ironic import client_wrapper
 from nova.virt.ironic import ironic_states
 from nova.virt.ironic import patcher
@@ -118,13 +119,13 @@ def _validate_instance_and_node(icli, instance):
         raise exception.InstanceNotFound(instance_id=instance['uuid'])
 
 
-def _get_nodes_supported_instances(cpu_arch=None):
+def _get_supported_instances(cpu_arch=None):
     """Return supported instances for a node."""
     if not cpu_arch:
         return []
-    return [(cpu_arch,
-             hvtype.BAREMETAL,
-             vm_mode.HVM)]
+    return [hardware.VirtInstanceInfo(cpu_arch,
+                                      hvtype.BAREMETAL,
+                                      vm_mode.HVM)]
 
 
 def _log_ironic_polling(what, node, instance):
@@ -267,8 +268,7 @@ class IronicDriver(virt_driver.ComputeDriver):
             'memory_mb_used': memory_mb_used,
             'host_memory_total': memory_mb,
             'host_memory_free': memory_mb - memory_mb_used,
-            'supported_instances': jsonutils.dumps(
-                _get_nodes_supported_instances(cpu_arch)),
+            'supported_instances': _get_supported_instances(cpu_arch),
             'stats': jsonutils.dumps(nodes_extra_specs),
             'host': CONF.host,
         }

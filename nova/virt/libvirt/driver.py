@@ -4926,11 +4926,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
         data['pci_devices'] = self._get_pci_device_info()
 
-        numa_topology = self._get_host_numa_topology()
-        if numa_topology:
-            data['numa_topology'] = numa_topology.to_json()
-        else:
-            data['numa_topology'] = None
+        data['numa_topology'] = self._get_host_numa_topology()
 
         return data
 

@@ -389,6 +389,11 @@ class ResourceTracker(object):
                      inst in resources["supported_instances"]]
         resources["supported_instances"] = jsonutils.dumps(instances)
 
+        # Convert from VirtNUMATopology object to a JSON string suitable
+        # for persisting to database
+        if resources["numa_topology"] is not None:
+            resources["numa_topology"] = resources["numa_topology"].to_json()
+
         self._report_final_resource_view(resources)
 
         metrics = self._get_host_metrics(context, self.nodename)

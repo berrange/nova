@@ -10236,10 +10236,8 @@ class HostStateTestCase(test.NoDBTestCase):
             self.assertEqual(
                 HostStateTestCase.supported_instances[i]._to_dict(),
                 stats["supported_instances"][i]._to_dict())
-        self.assertThat(hardware.VirtNUMAHostTopology.from_json(
-                            stats['numa_topology'])._to_dict(),
-                        matchers.DictMatches(
-                                HostStateTestCase.numa_topology._to_dict()))
+        self.assertEqual(stats['numa_topology']._to_dict(),
+                         HostStateTestCase.numa_topology._to_dict())
 
 
 class LibvirtDriverTestCase(test.TestCase):

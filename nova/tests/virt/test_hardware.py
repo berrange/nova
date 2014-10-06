@@ -17,6 +17,9 @@ import uuid
 import mock
 import six
 
+from nova.compute import arch as compute_arch
+from nova.compute import hvtype as compute_hvtype
+from nova.compute import vm_mode as compute_vmmode
 from nova import context
 from nova import exception
 from nova import objects
@@ -1383,3 +1386,40 @@ class HelperMethodsTestCase(test.NoDBTestCase):
                                                   never_serialize_result=True)
         self.assertIsInstance(res, hw.VirtNUMAHostTopology)
         self._check_usage(res)
+
+
+class InstanceInfoTestCase(test.NoDBTestCase):
+
+    def test_canonicalize(self):
+        # Using non-canonical values fo args here
+        info = hw.VirtInstanceInfo("X86_64", "KvM", "HVm")
+
+        self.assertEqual(compute_arch.X86_64, info.arch)
+        self.assertEqual(compute_hvtype.KVM, info.hvtype)
+        self.assertEqual(compute_vmmode.HVM, info.vmmode)
+
+    def test_serialize(self):
+        info = hw.VirtInstanceInfo(compute_arch.X86_64,
+                                   compute_hvtype.KVM,
+                                   compute_vmmode.HVM)
+        data = info._to_dict()
+
+        expect = {
+            "arch": compute_arch.X86_64,
+            "hvtype": compute_hvtype.KVM,
+            "vmmode": compute_vmmode.HVM,
+        }
+        self.assertEqual(expect, data)
+
+    def test_deserialize(self):
+        data = {
+            "arch": compute_arch.X86_64,
+            "hvtype": compute_hvtype.KVM,
+            "vmmode": compute_vmmode.HVM,
+        }
+
+        info = hw.VirtInstanceInfo._from_dict(data)
+
+        self.assertEqual(compute_arch.X86_64, info.arch)
+        self.assertEqual(compute_hvtype.KVM, info.hvtype)
+        self.assertEqual(compute_vmmode.HVM, info.vmmode)

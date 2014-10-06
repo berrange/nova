@@ -17,6 +17,9 @@ import collections
 from oslo.config import cfg
 import six
 
+from nova.compute import arch as compute_arch
+from nova.compute import hvtype as compute_hvtype
+from nova.compute import vm_mode as compute_vmmode
 from nova import context
 from nova import exception
 from nova.i18n import _
@@ -926,6 +929,35 @@ class VirtNUMAHostTopology(VirtNUMATopology):
                     claimed_cell.cpu_usage > limit_cell.cpu_limit):
                 return (_("Requested instance NUMA topology is too large for "
                           "the given host NUMA topology limits."))
+
+
+class VirtInstanceInfo(object):
+    """Records information about the guest instances hardware
+    types that can be executed by the hypervisor.
+    """
+
+    def __init__(self, arch, hvtype, vmmode):
+        """Create new instance information record
+
+        :param arch: one of nova.compute.arch constants
+        :param hvtype: one of nova.compute.hvtype constants
+        :param vmmode: one of nova.compute.vmmode constants
+        """
+
+        self.arch = compute_arch.canonicalize(arch)
+        self.hvtype = compute_hvtype.canonicalize(hvtype)
+        self.vmmode = compute_vmmode.canonicalize(vmmode)
+
+    def _to_dict(self):
+        return {
+            "arch": self.arch,
+            "hvtype": self.hvtype,
+            "vmmode": self.vmmode
+        }
+
+    @classmethod
+    def _from_dict(cls, data):
+        return cls(data["arch"], data["hvtype"], data["vmmode"])
 
 
 # TODO(ndipanov): Remove when all code paths are using objects

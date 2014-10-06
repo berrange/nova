@@ -1423,3 +1423,66 @@ class InstanceInfoTestCase(test.NoDBTestCase):
         self.assertEqual(compute_arch.X86_64, info.arch)
         self.assertEqual(compute_hvtype.KVM, info.hvtype)
         self.assertEqual(compute_vmmode.HVM, info.vmmode)
+
+
+class PCIDeviceTestCase(test.NoDBTestCase):
+
+    def test_validation_no_address(self):
+        self.assertRaises(exception.PCIDeviceAddressMissing,
+                          hw.VirtPCIDeviceInfo,
+                          hw.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+                          "dev_0000:00:01.0",
+                          "label_8086_0443",
+                          0x8086,
+                          0x443,
+                          None)
+
+    def test_validation_virt_no_parent(self):
+        self.assertRaises(exception.PCIDeviceParentAddressMissing,
+                          hw.VirtPCIDeviceInfo,
+                          hw.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+                          "dev_0000:00:01.0",
+                          "label_8086_0443",
+                          0x8086, 0x443,
+                          hw.VirtPCIAddressInfo(0, 0, 1, 0))
+
+    def test_serialize_reg(self):
+        info = hw.VirtPCIDeviceInfo(
+            hw.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+            "dev_0000:00:01.0",
+            "label_8086_0443",
+            0x8086,
+            0x443,
+            hw.VirtPCIAddressInfo(0, 0, 1, 0))
+
+        data = info._to_dict()
+        expect = {
+            "dev_type": hw.VirtPCIDeviceInfo.DEV_TYPE_REGULAR,
+            "dev_id": "dev_0000:00:01.0",
+            "label": "label_8086_0443",
+            "vendor_id": 0x8086,
+            "product_id": 0x443,
+            "address": "0000:00:01.0",
+        }
+        self.assertEqual(expect, data)
+
+    def test_serialize_virt(self):
+        info = hw.VirtPCIDeviceInfo(
+            hw.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+            "dev_0000:00:01.1",
+            "label_8086_0443",
+            0x8086, 0x443,
+            hw.VirtPCIAddressInfo(0, 0, 1, 1),
+            hw.VirtPCIAddressInfo(0, 0, 1, 0))
+
+        data = info._to_dict()
+        expect = {
+            "dev_type": hw.VirtPCIDeviceInfo.DEV_TYPE_VIRT_FUNC,
+            "dev_id": "dev_0000:00:01.1",
+            "label": "label_8086_0443",
+            "vendor_id": 0x8086,
+            "product_id": 0x443,
+            "address": "0000:00:01.1",
+            "phys_function": "0000:00:01.0",
+        }
+        self.assertEqual(expect, data)

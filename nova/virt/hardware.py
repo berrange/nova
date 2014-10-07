@@ -605,11 +605,9 @@ class VirtCPUModel(object):
       host CPU without changes. It is not possible to
       migrate guests with this model.
 
-    When determining if a host CPU is compatible with the
-    requested guest CPU, there are a number of match options
-
-    - MATCH_NONE - no match policy. Used if the CPU model
-      instance represents a host CPU only.
+    If the CPU represents a virtual guest CPU, then the
+    match attribute can be set to specify how the
+    compatibility with host CPU should be checked:
 
     - MATCH_MINIMUM - the guest CPU will be given at least
       the requested features. Other features from the host
@@ -633,7 +631,6 @@ class VirtCPUModel(object):
     MODE_HOST_MODEL = "host-model"
     MODE_HOST_PASSTHROUGH = "host-passthrough"
 
-    MATCH_NONE = "none"
     MATCH_MINIMUM = "minimum"
     MATCH_EXACT = "exact"
     MATCH_STRICT = "strict"
@@ -645,7 +642,7 @@ class VirtCPUModel(object):
                  features=None,
                  vendor=None,
                  topology=None,
-                 match=MATCH_NONE):
+                 match=None):
         if features is None:
             features = []
 
@@ -657,9 +654,19 @@ class VirtCPUModel(object):
         self.topology = topology
         self.match = match
 
-    def _to_dict(self):
-        data = {'mode': self.mode,
-                'features': [feat._to_dict() for feat in self.features]}
+    def _to_dict(self, compatMode=False):
+        features = []
+        for f in self.features:
+            if compatMode:
+                features.append(f.name)
+            else:
+                features.append(f._to_dict())
+
+        if compatMode:
+            data = {'mode': self.mode,
+                    'features': features}
+        else:
+            data = {'features': features}
 
         if self.arch is not None:
             data['arch'] = self.arch
@@ -675,26 +682,40 @@ class VirtCPUModel(object):
         return data
 
     @classmethod
-    def _from_dict(cls, data):
-        features = [VirtCPUFeature._from_dict(f) for f in data['features']]
+    def _from_dict(cls, data, compatMode=False):
+        features = []
+        for f in data['features']:
+            if compatMode:
+                features.append(VirtCPUFeature(f))
+            else:
+                features.append(VirtCPUFeature._from_dict(f))
         if data.get('topology', None) is not None:
             topo = VirtCPUTopology._from_dict(data['topology'])
         else:
             topo = None
-        return cls(mode=data['mode'],
-                   arch=data.get('arch', None),
-                   name=data.get('name', None),
-                   vendor=data.get('vendor', None),
-                   features=features,
-                   topology=topo,
-                   match=data.get('match', None))
 
-    def to_json(self):
-        return jsonutils.dumps(self._to_dict())
+        if compatMode:
+            return cls(mode=cls.MODE_CUSTOM,
+                       arch=data.get('arch', None),
+                       name=data.get('model', None),
+                       vendor=data.get('vendor', None),
+                       features=features,
+                       topology=topo)
+        else:
+            return cls(mode=data['mode'],
+                       arch=data.get('arch', None),
+                       name=data.get('name', None),
+                       vendor=data.get('vendor', None),
+                       features=features,
+                       topology=topo,
+                       match=data.get('match', None))
+
+    def to_json(self, compateMode=False):
+        return jsonutils.dumps(self._to_dict(compatMode))
 
     @classmethod
-    def from_json(cls, json_string):
-        return cls._from_dict(jsonutils.loads(json_string))
+    def from_json(cls, json_string, compatMode=False):
+        return cls._from_dict(jsonutils.loads(json_string), compatMode)
 
 
 class VirtNUMATopologyCell(object):

@@ -3452,7 +3452,7 @@ class LibvirtConnTestCase(test.TestCase):
 
         cpu_expect = '''{
           "topology": {"cores": 1, "threads": 1, "sockets": 1},
-          "match": "exact", "mode": "custom",
+          "match": "exact",
           "name": "Penryn", "features": []
         }'''
 
@@ -5233,7 +5233,12 @@ class LibvirtConnTestCase(test.TestCase):
         instance_ref = db.instance_create(self.context, self.test_instance)
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
         compute_info = {'disk_available_least': 400,
-                        'cpu_info': 'asdf'}
+                        'cpu_info': jsonutils.dumps({
+            "vendor": "AMD",
+            "features": ["sse3"],
+            "model": "Opteron_G3",
+            "topology": {"cores": 2, "threads": 1, "sockets": 4}
+        })}
         filename = "file"
         cpu = hardware.VirtCPUModel(
             mode=hardware.VirtCPUModel.MODE_CUSTOM,
@@ -5274,7 +5279,12 @@ class LibvirtConnTestCase(test.TestCase):
     def test_check_can_live_migrate_dest_all_pass_no_block_migration(self):
         instance_ref = db.instance_create(self.context, self.test_instance)
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
-        compute_info = {'cpu_info': 'asdf'}
+        compute_info = {'cpu_info': jsonutils.dumps({
+            "vendor": "AMD",
+            "features": ["sse3"],
+            "model": "Opteron_G3",
+            "topology": {"cores": 2, "threads": 1, "sockets": 4}
+        })}
         filename = "file"
         cpu = hardware.VirtCPUModel(
             mode=hardware.VirtCPUModel.MODE_HOST_MODEL,
@@ -5310,11 +5320,11 @@ class LibvirtConnTestCase(test.TestCase):
             "topology": {"cores": 2, "threads": 1, "sockets": 4}
         })}
         filename = "file"
-        cpuxml = '''<cpu match="exact">
+        cpuxml = '''<cpu mode="custom" match="exact">
   <model>Opteron_G3</model>
   <vendor>AMD</vendor>
   <topology sockets="4" cores="2" threads="1"/>
-  <feature name="sse3"/>
+  <feature name="sse3" policy="require"/>
 </cpu>
 '''
 
@@ -5340,7 +5350,12 @@ class LibvirtConnTestCase(test.TestCase):
     def test_check_can_live_migrate_dest_incompatible_cpu_raises(self):
         instance_ref = db.instance_create(self.context, self.test_instance)
         conn = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
-        compute_info = {'cpu_info': 'asdf'}
+        compute_info = {'cpu_info': jsonutils.dumps({
+            "vendor": "AMD",
+            "features": ["sse3"],
+            "model": "Opteron_G3",
+            "topology": {"cores": 2, "threads": 1, "sockets": 4}
+        })}
         cpu = hardware.VirtCPUModel(
             mode=hardware.VirtCPUModel.MODE_HOST_MODEL,
             match=hardware.VirtCPUModel.MATCH_STRICT)
@@ -7958,13 +7973,18 @@ class LibvirtConnTestCase(test.TestCase):
                        '_get_host_capabilities',
                        get_host_capabilities_stub)
 
-        want = {"vendor": "AMD",
-                "features": ["extapic", "3dnow"],
-                "model": "Opteron_G4",
-                "arch": arch.X86_64,
-                "topology": {"cores": 2, "threads": 1, "sockets": 4}}
-        got = jsonutils.loads(conn._get_cpu_info())
-        self.assertEqual(want, got)
+        want = hardware.VirtCPUModel(
+            mode=hardware.VirtCPUModel.MODE_CUSTOM,
+            name="Opteron_G4",
+            arch=arch.X86_64,
+            features=[
+                hardware.VirtCPUFeature("extapic"),
+                hardware.VirtCPUFeature("3dnow"),
+            ],
+            vendor="AMD",
+            topology=hardware.VirtCPUTopology(4, 2, 1))
+        got = conn._get_cpu_model()
+        self.assertEqual(want._to_dict(), got._to_dict())
 
     def test_get_pcidev_info(self):
 
@@ -10124,11 +10144,28 @@ Active:          8381604 kB
 
 class HostStateTestCase(test.NoDBTestCase):
 
-    cpu_info = ('{"vendor": "Intel", "model": "pentium", "arch": "i686", '
-                 '"features": ["ssse3", "monitor", "pni", "sse2", "sse", '
-                 '"fxsr", "clflush", "pse36", "pat", "cmov", "mca", "pge", '
-                 '"mtrr", "sep", "apic"], '
-                 '"topology": {"cores": "1", "threads": "1", "sockets": "1"}}')
+    cpu_model = hardware.VirtCPUModel(
+        mode=hardware.VirtCPUModel.MODE_CUSTOM,
+        name="pentium",
+        features=[
+            hardware.VirtCPUFeature("ssse3"),
+            hardware.VirtCPUFeature("monitor"),
+            hardware.VirtCPUFeature("pni"),
+            hardware.VirtCPUFeature("sse2"),
+            hardware.VirtCPUFeature("sse"),
+            hardware.VirtCPUFeature("fxsr"),
+            hardware.VirtCPUFeature("clflush"),
+            hardware.VirtCPUFeature("pse36"),
+            hardware.VirtCPUFeature("pat"),
+            hardware.VirtCPUFeature("cmov"),
+            hardware.VirtCPUFeature("mca"),
+            hardware.VirtCPUFeature("pge"),
+            hardware.VirtCPUFeature("mtrr"),
+            hardware.VirtCPUFeature("sep"),
+            hardware.VirtCPUFeature("apic")
+        ],
+        vendor="Intel",
+        topology=hardware.VirtCPUTopology(1, 1, 1))
     supported_instances = [
         hardware.VirtInstanceInfo(arch.X86_64,
                                   hvtype.KVM,
@@ -10163,8 +10200,8 @@ class HostStateTestCase(test.NoDBTestCase):
         def _get_vcpu_used(self):
             return 0
 
-        def _get_cpu_info(self):
-            return HostStateTestCase.cpu_info
+        def _get_cpu_model(self):
+            return HostStateTestCase.cpu_model
 
         def _get_disk_over_committed_size_total(self):
             return 0
@@ -10216,14 +10253,8 @@ class HostStateTestCase(test.NoDBTestCase):
         self.assertEqual(stats["hypervisor_type"], 'QEMU')
         self.assertEqual(stats["hypervisor_version"], 13091)
         self.assertEqual(stats["hypervisor_hostname"], 'compute1')
-        self.assertEqual(jsonutils.loads(stats["cpu_info"]),
-                {"vendor": "Intel", "model": "pentium",
-                 "arch": arch.I686,
-                 "features": ["ssse3", "monitor", "pni", "sse2", "sse",
-                              "fxsr", "clflush", "pse36", "pat", "cmov",
-                              "mca", "pge", "mtrr", "sep", "apic"],
-                 "topology": {"cores": "1", "threads": "1", "sockets": "1"}
-                })
+        self.assertEqual(HostStateTestCase.cpu_model._to_dict(),
+                         stats["cpu_model"]._to_dict())
         self.assertEqual(stats["disk_available_least"], 80)
         self.assertEqual(len(HostStateTestCase.pci_devices),
                          len(stats["pci_devices"]))

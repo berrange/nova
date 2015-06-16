@@ -22,6 +22,7 @@ Starts both the EC2 and OpenStack APIs in separate greenthreads.
 
 import sys
 
+import oslo_devsupport as ods
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -43,6 +44,7 @@ def main():
     utils.monkey_patch()
     objects.register_all()
 
+    ods.setup(CONF, "nova-api")
     gmr.TextGuruMeditation.setup_autorun(version)
 
     launcher = service.process_launcher()

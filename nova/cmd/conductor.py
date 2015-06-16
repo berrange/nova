@@ -18,6 +18,7 @@ import sys
 
 from oslo_concurrency import processutils
 from oslo_config import cfg
+import oslo_devsupport as ods
 from oslo_log import log as logging
 
 from nova import config
@@ -37,6 +38,7 @@ def main():
     utils.monkey_patch()
     objects.register_all()
 
+    ods.setup(CONF, "nova-conductor")
     gmr.TextGuruMeditation.setup_autorun(version)
 
     server = service.Service.create(binary='nova-conductor',

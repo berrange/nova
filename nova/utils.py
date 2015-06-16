@@ -40,6 +40,7 @@ from oslo_concurrency import lockutils
 from oslo_concurrency import processutils
 from oslo_config import cfg
 from oslo_context import context as common_context
+import oslo_devsupport as ods
 from oslo_log import log as logging
 import oslo_messaging as messaging
 from oslo_utils import encodeutils
@@ -993,9 +994,16 @@ def spawn_n(func, *args, **kwargs):
         # available for the logger to pull from threadlocal storage.
         if _context is not None:
             _context.update_store()
-        func(*args, **kwargs)
+        with ods.entry_point():
+            with ods.thread_execute(func.__module__,
+                                    func.__name__,
+                                    args, kwargs):
+                func(*args, **kwargs)
 
-    eventlet.spawn_n(context_wrapper, *args, **kwargs)
+    with ods.thread_spawn(func.__module__,
+                          func.__name__,
+                          args, kwargs):
+        eventlet.spawn_n(context_wrapper, *args, **kwargs)
 
 
 def is_none_string(val):

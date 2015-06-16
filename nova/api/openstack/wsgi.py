@@ -19,6 +19,7 @@ import inspect
 import math
 import time
 
+import oslo_devsupport as ods
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import strutils
@@ -752,8 +753,13 @@ class Resource(wsgi.Application):
         #            function.  If we try to audit __call__(), we can
         #            run into troubles due to the @webob.dec.wsgify()
         #            decorator.
-        return self._process_stack(request, action, action_args,
-                               content_type, body, accept)
+        with ods.entry_point():
+            with ods.http_dispatch(request.method,
+                                   request.path_url,
+                                   dict(request.GET),
+                                   dict(request.headers)):
+                return self._process_stack(request, action, action_args,
+                                           content_type, body, accept)
 
     def _process_stack(self, request, action, action_args,
                        content_type, body, accept):

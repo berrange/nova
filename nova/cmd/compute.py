@@ -19,6 +19,7 @@
 import sys
 import traceback
 
+import oslo_devsupport as ods
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -60,6 +61,7 @@ def main():
     utils.monkey_patch()
     objects.register_all()
 
+    ods.setup(CONF, "nova-compute")
     gmr.TextGuruMeditation.setup_autorun(version)
 
     if not CONF.conductor.use_local:

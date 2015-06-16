@@ -20,6 +20,7 @@ import sys
 import traceback
 
 from oslo_config import cfg
+import oslo_devsupport as ods
 from oslo_log import log as logging
 
 from nova.conductor import rpcapi as conductor_rpcapi
@@ -60,6 +61,7 @@ def main():
     utils.monkey_patch()
     objects.register_all()
 
+    ods.setup(CONF, "nova-network")
     gmr.TextGuruMeditation.setup_autorun(version)
 
     if not CONF.conductor.use_local:
